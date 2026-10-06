@@ -2,6 +2,7 @@
 
 그룹 여행 일정과 공동 경비를 관리하기 위한 Flutter 모바일 앱입니다.
 현재는 Android·iOS용 공식 Flutter 기본 프로젝트이며, 화면은 기본 카운터 예제입니다.
+백엔드는 `backend/` 폴더의 Spring Boot 프로젝트입니다. 자세한 내용은 [백엔드](#백엔드-spring-boot) 절을 참고하세요.
 
 ## 개발 환경
 
@@ -158,3 +159,54 @@ flutter run
 ```
 
 공식 안내: [Flutter의 Android Studio 설정](https://docs.flutter.dev/tools/android-studio), [Android 개발 환경 설정](https://docs.flutter.dev/platform-integration/android/setup)
+
+## 백엔드 (Spring Boot)
+
+`backend/` 폴더는 Spring Initializr로 생성한 REST API 서버입니다. 현재는 생성 직후 상태이며 API는 아직 구현되지 않았습니다.
+
+### 프로젝트 설정
+
+| 항목 | 값 |
+| --- | --- |
+| Build | Gradle - Kotlin (`build.gradle.kts`) |
+| Language | Java 21 |
+| Spring Boot | 4.1.1 |
+| Packaging | Jar |
+| Configuration | YAML (`src/main/resources/application.yaml`) |
+| Group / Artifact | `com.backpackcorp` / `backend` |
+| Package | `com.backpackcorp.backpack` |
+
+### 의존성
+
+| 의존성 | 용도 |
+| --- | --- |
+| Spring Web | REST API (Spring MVC, Tomcat) |
+| Validation | 입력값 검증 |
+| Lombok | 반복 코드 자동 생성 |
+| Spring Boot DevTools | 개발 중 자동 재시작 |
+| Spring Data JPA | DB 접근 (Hibernate) |
+| Flyway Migration | DB 스키마 버전 관리 (`flyway-mysql` 포함) |
+| MySQL Driver | MySQL 접속 |
+
+### 개발 환경
+
+- JDK 21이 필요합니다. `java -version`으로 확인하세요.
+- Gradle은 별도로 설치하지 않아도 됩니다. Gradle Wrapper(`gradlew.bat`)가 처음 실행할 때 자동으로 내려받습니다.
+- IntelliJ IDEA에서는 `backend` 폴더를 열면 Gradle 프로젝트로 인식합니다. Lombok을 쓰려면 `Settings → Build, Execution, Deployment → Compiler → Annotation Processors`에서 `Enable annotation processing`을 켜세요.
+
+### 빌드 및 실행
+
+`backend` 폴더의 PowerShell에서 실행합니다.
+
+```powershell
+.\gradlew.bat compileJava   # 컴파일 확인
+.\gradlew.bat bootRun       # 서버 실행 (기본 포트 8080)
+.\gradlew.bat test          # 테스트
+```
+
+`application.yaml`에 DB 접속 정보(`spring.datasource`)가 아직 없습니다. 그래서 지금은 `bootRun`과 `test`가 DataSource 오류로 실패합니다.
+MySQL 접속 정보를 설정한 뒤에 실행하세요. 비밀번호 같은 민감한 값은 커밋하지 말고 환경변수로 넘기세요.
+
+### 검증
+
+생성 직후 JDK 21 환경에서 `compileJava`와 `compileTestJava`가 성공했습니다. DB를 설정하지 않아 서버 실행과 테스트는 아직 확인하지 않았습니다.
