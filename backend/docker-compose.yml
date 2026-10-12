@@ -1,0 +1,38 @@
+# 로컬 개발용 MySQL + Redis: docker compose up -d
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: backpack_mysql
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      MYSQL_DATABASE: backpack
+      MYSQL_USER: ${DB_USERNAME:-backpack}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-backpack}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      # TZ를 지정하지 않는다(UTC). 앱이 시각을 UTC로 저장하므로 DB의 CURRENT_TIMESTAMP도 UTC여야 한다
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ponytail: 로컬 전용이라 비밀번호·볼륨 없음. 컨테이너를 지우면(docker compose down) 데이터가 사라진다.
+  # 포트는 127.0.0.1에만 연다
+  redis:
+    image: redis:8-alpine
+    container_name: backpack_redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
