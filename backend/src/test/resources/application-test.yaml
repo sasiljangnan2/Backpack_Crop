@@ -1,0 +1,24 @@
+# ponytail: 테스트는 H2 + Flyway off (V1__init.sql이 MySQL 전용 문법).
+# 마이그레이션과 엔티티-스키마 검증은 CI의 "Boot against MySQL" 단계(scripts/smoke-boot.sh)가 맡는다
+spring:
+  datasource:
+    url: jdbc:h2:mem:test;MODE=MySQL
+    hikari:
+      # application.yaml의 SET time_zone(MySQL 문법)을 H2 문법으로 바꾼 것
+      connection-init-sql: "SET TIME ZONE 'UTC'"
+  flyway:
+    enabled: false
+  # 테스트에는 Redis가 없으므로 메모리 캐시를 쓴다
+  cache:
+    type: simple
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+# 테스트가 올린 파일은 build 아래에 둔다 (gradle clean으로 지워진다)
+storage:
+  root-path: build/test-storage
+  public-base-url: http://localhost/files
+
+jwt:
+  secret: test-only-secret-at-least-32-bytes-long
