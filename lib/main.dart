@@ -1,13 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'core/theme/app_colors.dart';
+
 import 'package:flutter/widget_previews.dart';
 
+import 'signup_screen.dart';
+import 'home_screen.dart';
+
 void main() => runApp(const MyApp());
+
+@Preview(name: 'Backpack 여행 홈', size: Size(390, 844))
+Widget homePreview() => const MaterialApp(
+  debugShowCheckedModeBanner: false,
+  home: TravelHomeScreen(),
+);
+
+@Preview(name: 'Backpack 회원가입', size: Size(390, 844))
+Widget signupPreview() => const MaterialApp(home: SignupScreen());
 
 @Preview(name: 'Backpack 시작 화면', size: Size(390, 844))
 Widget welcomePreview() => const MyApp();
 
-const _brand = Color(0xFF007F9F);
+const _brand = AppColors.primary;
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -20,7 +35,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: Colors.white,
-        colorScheme: ColorScheme.fromSeed(seedColor: _brand),
+        colorScheme: AppColors.scheme,
       ),
       home: const WelcomeScreen(),
     );
@@ -86,7 +101,7 @@ class WelcomeScreen extends StatelessWidget {
                                     height: 1.15,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: -1.2,
-                                    color: Color(0xFF202020),
+                                    color: AppColors.ink,
                                   ),
                                 ),
                                 const SizedBox(height: 10),
@@ -95,7 +110,7 @@ class WelcomeScreen extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
-                                    color: Color(0xFF656565),
+                                    color: AppColors.muted,
                                   ),
                                 ),
                                 const SizedBox(height: 40),
@@ -115,6 +130,20 @@ class WelcomeScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 48),
                                 const Spacer(),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            const TravelHomeScreen(),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.travel_explore),
+                                    label: const Text('샘플 여행 홈 둘러보기'),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
                                 SizedBox(
                                   width: double.infinity,
                                   child: FilledButton(
@@ -139,13 +168,16 @@ class WelcomeScreen extends StatelessWidget {
                                 SizedBox(
                                   width: double.infinity,
                                   child: OutlinedButton(
-                                    onPressed: () =>
-                                        _showPreview(context, '회원가입'),
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => const SignupScreen(),
+                                      ),
+                                    ),
                                     style: OutlinedButton.styleFrom(
-                                      foregroundColor: const Color(0xFF242424),
+                                      foregroundColor: AppColors.ink,
                                       minimumSize: const Size.fromHeight(54),
                                       side: const BorderSide(
-                                        color: Color(0xFFE2E6E8),
+                                        color: AppColors.border,
                                       ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
@@ -185,7 +217,7 @@ class WelcomeScreen extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: 11,
                                       height: 1.5,
-                                      color: Color(0xFF858585),
+                                      color: AppColors.muted,
                                     ),
                                   ),
                                 ),
@@ -221,7 +253,7 @@ class _Feature extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: const Color(0xFFE8F5F8),
+            color: AppColors.primarySoft,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: _brand, size: 22),
@@ -233,7 +265,7 @@ class _Feature extends StatelessWidget {
             style: const TextStyle(
               fontSize: 14,
               height: 1.5,
-              color: Color(0xFF333333),
+              color: AppColors.ink,
             ),
           ),
         ),

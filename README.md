@@ -1,8 +1,12 @@
 # Backpack
 
 그룹 여행 일정과 공동 경비를 관리하기 위한 Flutter 모바일 앱입니다.
-현재는 Android·iOS용 공식 Flutter 기본 프로젝트이며, 화면은 기본 카운터 예제입니다.
+현재는 시작·회원가입·여행 홈과 하단 탭의 프론트엔드 샘플 화면을 제공합니다.
 백엔드는 `backend/` 폴더의 Spring Boot 프로젝트입니다. 자세한 내용은 [백엔드](#백엔드-spring-boot) 절을 참고하세요.
+
+## 화면 디자인 기준
+
+PPT 스토리보드 v1.1의 코랄 색상을 사용합니다. 이후 화면 작업도 [디자인 기준](docs/design-reference.md)을 함께 확인하세요.
 
 ## 개발 환경
 
@@ -210,3 +214,11 @@ MySQL 접속 정보를 설정한 뒤에 실행하세요. 비밀번호 같은 민
 ### 검증
 
 생성 직후 JDK 21 환경에서 `compileJava`와 `compileTestJava`가 성공했습니다. DB를 설정하지 않아 서버 실행과 테스트는 아직 확인하지 않았습니다.
+
+
+## Flutter 패키지 경로 오류
+
+`vector_math`, `characters`, `material_color_utilities` 등을 읽을 수 없다는 오류가 나면 패키지 캐시와 생성된 빌드 파일을 확인하세요.
+캐시 재설치로 해결되지 않는 환경에서는 영문 경로의 별도 Pub 캐시를 만들고 `PUB_CACHE` 환경 변수에 지정하세요(예: `C:\dev\pub-cache`).
+환경 변수를 변경한 후에는 Android Studio를 완전히 종료했다가 다시 열고 `flutter clean`, `flutter pub get`을 실행하세요.
+기존 IDE를 계속 사용하는 경우 실행 구성의 Environment variables에도 같은 `PUB_CACHE` 값을 지정하세요. 개인 PC의 실제 경로는 저장소에 커밋하지 않습니다.
