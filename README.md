@@ -1,12 +1,8 @@
 # Backpack
 
 그룹 여행 일정과 공동 경비를 관리하기 위한 Flutter 모바일 앱입니다.
-현재는 시작·회원가입·여행 홈과 하단 탭의 프론트엔드 샘플 화면을 제공합니다.
+현재는 Android·iOS용 공식 Flutter 기본 프로젝트이며, 화면은 기본 카운터 예제입니다.
 백엔드는 `backend/` 폴더의 Spring Boot 프로젝트입니다. 자세한 내용은 [백엔드](#백엔드-spring-boot) 절을 참고하세요.
-
-## 화면 디자인 기준
-
-PPT 스토리보드 v1.1의 코랄 색상을 사용합니다. 이후 화면 작업도 [디자인 기준](docs/design-reference.md)을 함께 확인하세요.
 
 ## 개발 환경
 
@@ -166,59 +162,46 @@ flutter run
 
 ## 백엔드 (Spring Boot)
 
-`backend/` 폴더는 Spring Initializr로 생성한 REST API 서버입니다. 현재는 생성 직후 상태이며 API는 아직 구현되지 않았습니다.
+`backend/` 폴더는 앱이 사용하는 REST API 서버입니다. 자세한 실행 방법과 개발 규칙은 [`backend/README.md`](backend/README.md)를 참고하세요.
 
-### 프로젝트 설정
+현재 상태: DB 테이블, 엔티티, 공통 설정(예외·보안·토큰·이미지 저장·캐시)이 준비되어 있고, API 컨트롤러는 아직 구현 전입니다.
+로그인 기능이 생기기 전까지는 개발용으로 모든 요청을 토큰 없이 허용합니다.
+
+### 기술 스택
 
 | 항목 | 값 |
 | --- | --- |
-| Build | Gradle - Kotlin (`build.gradle.kts`) |
 | Language | Java 21 |
-| Spring Boot | 4.1.1 |
-| Packaging | Jar |
-| Configuration | YAML (`src/main/resources/application.yaml`) |
-| Group / Artifact | `com.backpackcorp` / `backend` |
+| Framework | Spring Boot 4.1.1 (Gradle Kotlin DSL) |
+| DB | MySQL 8.4, 스키마는 Flyway로 관리 (`src/main/resources/db/migration`) |
+| Cache / 토큰 저장 | Redis 8 |
+| 인증 | JWT (Spring Security OAuth2 Resource Server) |
+| 푸시 알림 | Firebase Cloud Messaging (`firebase-admin`) |
 | Package | `com.backpackcorp.backpack` |
 
-### 의존성
+### 빠른 실행
 
-| 의존성 | 용도 |
-| --- | --- |
-| Spring Web | REST API (Spring MVC, Tomcat) |
-| Validation | 입력값 검증 |
-| Lombok | 반복 코드 자동 생성 |
-| Spring Boot DevTools | 개발 중 자동 재시작 |
-| Spring Data JPA | DB 접근 (Hibernate) |
-| Flyway Migration | DB 스키마 버전 관리 (`flyway-mysql` 포함) |
-| MySQL Driver | MySQL 접속 |
+Java 21과 Docker가 필요합니다. `backend` 폴더에서 실행합니다.
 
-### 개발 환경
-
-- JDK 21이 필요합니다. `java -version`으로 확인하세요.
-- Gradle은 별도로 설치하지 않아도 됩니다. Gradle Wrapper(`gradlew.bat`)가 처음 실행할 때 자동으로 내려받습니다.
-- IntelliJ IDEA에서는 `backend` 폴더를 열면 Gradle 프로젝트로 인식합니다. Lombok을 쓰려면 `Settings → Build, Execution, Deployment → Compiler → Annotation Processors`에서 `Enable annotation processing`을 켜세요.
-
-### 빌드 및 실행
-
-`backend` 폴더의 PowerShell에서 실행합니다.
-
-```powershell
-.\gradlew.bat compileJava   # 컴파일 확인
-.\gradlew.bat bootRun       # 서버 실행 (기본 포트 8080)
-.\gradlew.bat test          # 테스트
+```bash
+cp .env.example .env    # 로컬 설정 (JWT_SECRET이 없으면 서버가 뜨지 않음)
+docker compose up -d    # MySQL(3306), Redis(6379)
+./gradlew bootRun       # http://localhost:8080
 ```
 
-`application.yaml`에 DB 접속 정보(`spring.datasource`)가 아직 없습니다. 그래서 지금은 `bootRun`과 `test`가 DataSource 오류로 실패합니다.
-MySQL 접속 정보를 설정한 뒤에 실행하세요. 비밀번호 같은 민감한 값은 커밋하지 말고 환경변수로 넘기세요.
+Windows PowerShell에서는 `copy .env.example .env`, `.\gradlew.bat bootRun`을 사용합니다.
+처음 실행하면 Flyway가 테이블을 만들고, DB가 비어 있으면 더미 데이터(회원·여행·일정·지출 등)를 넣습니다.
 
-### 검증
+### 테스트
 
-생성 직후 JDK 21 환경에서 `compileJava`와 `compileTestJava`가 성공했습니다. DB를 설정하지 않아 서버 실행과 테스트는 아직 확인하지 않았습니다.
+```bash
+./gradlew build
+```
 
+테스트는 H2와 메모리 캐시로 실행되므로 MySQL·Redis 없이 돌아갑니다.
+PR에서는 GitHub Actions(`Backend CI`)가 빌드·테스트 후 실제 MySQL에 서버를 띄워 마이그레이션까지 확인합니다.
 
-## Flutter 패키지 경로 오류
+### 관련 문서
 
-`vector_math`, `characters`, `material_color_utilities` 등을 읽을 수 없다는 오류가 나면 패키지 캐시와 생성된 빌드 파일을 확인하세요.
-캐시 재설치로 해결되지 않는 환경에서는 영문 경로의 별도 Pub 캐시를 만들고 `PUB_CACHE` 환경 변수에 지정하세요(예: `C:\dev\pub-cache`).
-환경 변수를 변경한 후에는 Android Studio를 완전히 종료했다가 다시 열고 `flutter clean`, `flutter pub get`을 실행하세요.
-기존 IDE를 계속 사용하는 경우 실행 구성의 Environment variables에도 같은 `PUB_CACHE` 값을 지정하세요. 개인 PC의 실제 경로는 저장소에 커밋하지 않습니다.
+- [ERD](docs/erd/README.md) · [API 명세](docs/api/README.md)
+- [백엔드 컨벤션](docs/convention/backend/spring.md) · [프론트·백엔드 공통 약속](docs/convention/common/code.md)

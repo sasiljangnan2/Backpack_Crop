@@ -1,0 +1,26 @@
+# 기본값은 docker-compose.yml의 로컬 MySQL, Redis와 맞춰져 있다
+spring:
+  config:
+    # .env는 dev 프로필에서만 읽는다. 운영 서버에 남은 로컬용 .env가 설정을 대신 채우는 일을 막는다
+    import: "optional:file:./.env[.properties]"
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/backpack}
+    username: ${DB_USERNAME:backpack}
+    password: ${DB_PASSWORD:backpack}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+# 앱에 내려주는 이미지 주소의 앞부분. 안드로이드 에뮬레이터나 실제 기기로 볼 때는
+# localhost 대신 앱이 서버에 접속하는 주소(10.0.2.2, PC의 IP)로 바꾼다
+storage:
+  public-base-url: ${STORAGE_PUBLIC_BASE_URL:http://localhost:8080/files}
+
+logging:
+  level:
+    org.hibernate.SQL: debug

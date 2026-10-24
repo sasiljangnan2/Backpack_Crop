@@ -1,3 +1,74 @@
 spring:
   application:
     name: backend
+  profiles:
+    default: dev
+  datasource:
+    hikari:
+      # 세션 시간대를 UTC로 고정한다. 앱이 시각을 UTC로 저장하므로
+      # DB의 CURRENT_TIMESTAMP도 서버 시간대 설정과 무관하게 UTC여야 한다
+      connection-init-sql: "SET time_zone = '+00:00'"
+  servlet:
+    multipart:
+      # 넘으면 413 PAYLOAD_TOO_LARGE. 앱은 올리기 전에 이미지를 줄여서 보낸다
+      max-file-size: 10MB
+      max-request-size: 11MB
+  # ImageStorage가 저장한 파일을 /files/{키}로 내려준다
+  mvc:
+    static-path-pattern: /files/**
+  web:
+    # 유효성 검사 메시지(ErrorResponse.details)를 항상 한국어로 내려준다.
+    # 고정하지 않으면 서버 로케일을 따라가서 운영 컨테이너(영어)에서는 영어 메시지가 나간다
+    locale: ko_KR
+    locale-resolver: fixed
+    resources:
+      static-locations: "file:${storage.root-path}/"
+      cache:
+        cachecontrol:
+          # 키가 매번 새로 만들어지고 덮어쓰지 않으므로 앱이 오래 캐시해도 된다
+          max-age: 365d
+  # @Async 메서드를 실행하는 스레드 풀 (AsyncConfig)
+  task:
+    execution:
+      thread-name-prefix: async-
+      # 배포로 서버가 내려갈 때 실행 중인 작업(푸시 발송 등)이 끝나기를 기다린다
+      shutdown:
+        await-termination: true
+        await-termination-period: 20s
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  cache:
+    redis:
+      # 캐시 기본 수명. 키는 "backpack:cache:{캐시이름}::{키}" 형태로 저장된다
+      time-to-live: 10m
+      key-prefix: "backpack:cache:"
+  data:
+    redis:
+      # Redis가 응답하지 않을 때 요청이 오래 매달리지 않게 한다 (기본값은 연결 10초, 명령 60초)
+      connect-timeout: 2s
+      timeout: 2s
+      # Redis는 RedisTemplate으로만 쓴다. 켜 두면 JPA 리포지토리까지 Redis용으로 스캔한다
+      repositories:
+        enabled: false
+
+# 이미지 저장 폴더. 로컬은 프로젝트 루트의 storage/, 도커에서는 /app/storage (Dockerfile 참고)
+storage:
+  root-path: ${STORAGE_ROOT_PATH:./storage}
+
+server:
+  tomcat:
+    # 크기 제한을 넘은 업로드는 본문을 다 읽기 전에 거절된다. 남은 본문을 이만큼까지는 읽어서 버려야
+    # 앱이 연결 끊김 대신 413 응답을 받는다 (기본값 2MB로는 큰 사진에서 연결이 끊긴다)
+    max-swallow-size: 50MB
+
+firebase:
+  # FCM 서비스 계정 키(JSON) 파일 경로. 비워 두면 푸시 발송이 꺼진다
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+
+jwt:
+  # 어떤 프로필에도 기본값을 두지 않는다. 없으면 기동 실패 (로컬은 .env에 설정, dev 프로필만 .env를 읽는다)
+  secret: ${JWT_SECRET}
+  access-token-expiration: 30m
+  refresh-token-expiration: 14d

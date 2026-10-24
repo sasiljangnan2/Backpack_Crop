@@ -1,0 +1,25 @@
+# 필수 값에는 기본값을 두지 않는다. 환경변수가 빠지면 기동 실패 (목록은 README의 "운영 환경변수")
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      # 리프레시 토큰이 들어 있으므로 운영 Redis에는 비밀번호를 건다. 비워 두면 비밀번호 없이 접속한다.
+      # 메모리가 차도 만료 시간 없는 키를 지우지 않는 정책(noeviction, volatile-*)이어야 한다:
+      # 전체 폐기용 세대 번호(refresh-token-generation:*)가 지워지면 폐기한 토큰이 다시 유효해진다
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+
+# 앱에 내려주는 이미지 주소의 앞부분 (예: https://api.example.com/files)
+storage:
+  public-base-url: ${STORAGE_PUBLIC_BASE_URL}
+
+# 운영에서는 값을 반드시 정해야 한다. 환경변수가 없으면 기동 실패.
+# 푸시를 일부러 끄려면 FIREBASE_CREDENTIALS_PATH를 빈 값으로 명시한다
+firebase:
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH}
