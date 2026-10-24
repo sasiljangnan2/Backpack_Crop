@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core/theme/app_colors.dart';
+import 'features/expense/presentation/expense_split_screen.dart';
 
 const _primary = AppColors.primary;
 const _ink = AppColors.ink;
@@ -779,6 +780,25 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
               ),
             ],
             if (_tab == 2) ...[
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ExpenseSplitScreen(),
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.call_split),
+                label: const Text(
+                  '항목별 경비 나누기',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 16),
               _card(
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
