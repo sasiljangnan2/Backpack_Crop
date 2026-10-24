@@ -7,8 +7,16 @@ import 'package:flutter/widget_previews.dart';
 
 import 'signup_screen.dart';
 import 'home_screen.dart';
+import 'features/expense/presentation/expense_split_screen.dart';
 
 void main() => runApp(const MyApp());
+
+@Preview(name: 'Backpack 항목별 경비 분담', size: Size(390, 844))
+Widget expenseSplitPreview() => MaterialApp(
+  debugShowCheckedModeBanner: false,
+  theme: ThemeData(useMaterial3: true, colorScheme: AppColors.scheme),
+  home: const ExpenseSplitScreen(),
+);
 
 @Preview(name: 'Backpack 여행 홈', size: Size(390, 844))
 Widget homePreview() => const MaterialApp(

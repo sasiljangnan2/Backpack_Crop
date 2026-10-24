@@ -160,6 +160,23 @@ flutter run
 
 공식 안내: [Flutter의 Android Studio 설정](https://docs.flutter.dev/tools/android-studio), [Android 개발 환경 설정](https://docs.flutter.dev/platform-integration/android/setup)
 
+## 프론트엔드 경비 화면
+
+구조와 데이터 형식은 [Flutter 규칙](docs/convention/frontend/flutter.md)과
+[API 명세의 지출 항목](docs/api/README.md#9-지출)을 따릅니다.
+
+- `lib/features/expense/data/`: 지출 요청 DTO, 데이터 공급 인터페이스, 샘플 데이터
+- `lib/features/expense/presentation/`: 화면, 상태 관리, 화면용 계산, 문구와 위젯
+- 홈의 **경비 → 항목별 경비 나누기**에서 확인할 수 있습니다.
+
+현재는 샘플 데이터를 사용하며 서버에 저장하지 않습니다.
+`ExpenseSplitController.createRequest()`는 명세의 지출 추가 요청을 준비합니다.
+고정 환율 샘플은 `MANUAL` 모드이며, `EQUAL`은 총액 항목 하나,
+`ITEM`은 항목별 멤버 ID 목록을 보냅니다.
+미리보기에서 계산한 원화·분담액은 요청에 넣지 않습니다.
+서버 연결 시 조회 코드를 `ExpenseSplitRepository`로 제공하고,
+저장 결과의 환율·분담액은 서버 응답을 기준으로 표시해야 합니다.
+
 ## 백엔드 (Spring Boot)
 
 `backend/` 폴더는 앱이 사용하는 REST API 서버입니다. 자세한 실행 방법과 개발 규칙은 [`backend/README.md`](backend/README.md)를 참고하세요.
