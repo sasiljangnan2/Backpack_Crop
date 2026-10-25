@@ -1,50 +1,126 @@
 # Backpack
 
-그룹 여행 일정과 공동 경비를 관리하기 위한 Flutter 모바일 앱입니다.
-현재는 Android·iOS용 공식 Flutter 기본 프로젝트이며, 화면은 기본 카운터 예제입니다.
-백엔드는 `backend/` 폴더의 Spring Boot 프로젝트입니다. 자세한 내용은 [백엔드](#백엔드-spring-boot) 절을 참고하세요.
+그룹 여행의 준비 · 일정 · 지출 · 정산을 함께 관리하는 Flutter 앱(Android · iOS)과 Spring Boot API 서버입니다.
+
+- 앱: 이 폴더 (`lib/`). 모든 화면이 서버 API를 부릅니다
+- 서버: [`backend/`](backend/README.md)
+- 문서: [API 명세](docs/api/README.md) · [ERD](docs/erd/README.md) · [디자인 기준](docs/design-reference.md)
+
+## 기능
+
+| 영역 | 화면 |
+| --- | --- |
+| 회원 | 회원가입 · 로그인 (토큰 자동 재발급) · 내 정보 · 알림 설정 · 비밀번호 변경 · 탈퇴 |
+| 여행 | 목록 · 만들기/수정 (여행지 프리셋, 통화 · 시간대) · 초대 코드 공유 · 코드로 참여 · 나가기 · 삭제 |
+| 홈 | D-day / 여행 N일차, 현지 시각, 다음 일정 · 지연 안내, 공동 지출 · 내 정산 요약 |
+| 일정 | 날짜별 일정, 추가 · 수정 · 고정, 예약 상태, 시간 겹침 안내, 활동 기록(실제 시작 · 종료, 지연 시간) |
+| 장소 투표 | 만들기 · 투표 · 마감하면서 일정에 넣기 |
+| 경비 | 지출 등록(현지 통화 · 원화, 그날 환율 · 선불 환율 · 직접 입력, 균등 · 항목별 · 개별 금액), 상세 · 수정 · 삭제 |
+| 정산 | 사람별 잔액, 최소 송금 경로, 내 계산 근거, 결과 공유와 공유 기록 |
+| 예산 | 분류별 예산과 실제 지출, 1인 준비 금액 (여행 통화 예산은 오늘 환율로 환산) |
+| 준비 | 함께 할 업무(담당자 지정) · 내 준비물 체크리스트 |
+| 알림 | 알림함 · 안 읽은 수 배지 · 누르면 해당 화면으로 이동, FCM 푸시 (설정했을 때) |
+
+환율은 서버가 한국수출입은행(키가 있을 때) → 유럽중앙은행(Frankfurter) → ExchangeRate-API 순으로 받아 둡니다.
 
 ## 개발 환경
 
-- Flutter: 3.47.5 stable
-- Dart: 3.13.4
-- 앱 코드: `lib/main.dart`
-- 기본 위젯 테스트: `test/widget_test.dart`
+- Flutter 3.47 stable · Dart 3.13 (`pubspec.yaml`의 `sdk: ^3.13.0`)
+- 백엔드: Java 21, MySQL 8, Redis 8 ([`backend/README.md`](backend/README.md))
 
-Flutter SDK를 영문 경로에 설치하세요. 아래의 `C:\dev\flutter`와 `C:\dev\backpack`은 예시이며, 자신의 설치 위치에 맞게 변경하세요.
-사용자 PATH에 SDK의 `bin` 폴더를 등록하세요. 열려 있던 터미널과 IDE는 재시작하세요.
+Flutter SDK와 프로젝트는 한글 · 공백이 없는 경로에 두세요 (예: `C:\dev\flutter`, `C:\dev\backpack`). Android 설정은 아래 [Android Studio 설정 및 실행](#android-studio-설정-및-실행)을 참고하세요.
 
-프로젝트 루트의 PowerShell에서 다음처럼 실행할 수 있습니다.
+## 로컬에서 실행
 
-```powershell
-flutter pub get
-flutter doctor
-flutter devices
-flutter run
-```
+1. 서버를 띄웁니다 (`backend` 폴더, 자세한 내용은 [`backend/README.md`](backend/README.md)).
 
-`flutter run` 전에 Android 에뮬레이터를 켜거나 USB 디버깅을 허용한 Android 기기를 연결하세요.
-Android SDK 구성 요소는 아래 Android Studio 설정 절차에 따라 확인하세요.
-Android Studio의 SDK Manager → SDK Tools에서 Android SDK Command-line Tools를 설치하고,
-`flutter doctor --android-licenses`를 실행해 라이선스를 검토·동의하세요.
-iOS 빌드와 실행에는 macOS 및 Xcode가 필요합니다.
+   ```powershell
+   copy .env.example .env
+   docker compose up -d
+   .\gradlew.bat bootRun
+   ```
+
+2. 앱을 실행합니다 (프로젝트 루트).
+
+   ```powershell
+   flutter pub get
+   flutter run
+   ```
+
+   앱은 기본으로 Android 에뮬레이터에서 `http://10.0.2.2:8080`(PC의 localhost), 그 밖에서는 `http://localhost:8080`을 부릅니다.
+   실제 휴대폰에서 PC 서버를 쓰려면 PC의 IP를 넣습니다 (디버그 빌드만 http를 허용합니다).
+
+   ```powershell
+   flutter run --dart-define=API_BASE_URL=http://192.168.0.10:8080
+   ```
+
+dev 프로필 서버는 DB가 비어 있으면 더미 계정(`host@backpack.dev` / `backpack1234` 등)과 오사카 여행을 넣습니다. 새 계정으로 가입해서 써도 됩니다.
+
+## 빌드 설정 (`--dart-define`)
+
+| 이름 | 설명 |
+| --- | --- |
+| `API_BASE_URL` | 서버 주소. **출시 빌드는 반드시 `https://` 주소**를 넣습니다 (출시 빌드는 http를 막습니다) |
+| `FIREBASE_API_KEY` · `FIREBASE_APP_ID` · `FIREBASE_MESSAGING_SENDER_ID` · `FIREBASE_PROJECT_ID` | 푸시 알림용 Firebase 값. 넷 다 있을 때만 푸시를 켭니다. 없으면 알림함만 씁니다 |
+
+값이 많으면 파일로 넘길 수 있습니다: `flutter build appbundle --dart-define-from-file=release.json`
+
+## 출시 빌드
+
+1. **서버**: HTTPS로 서버를 배포합니다 (`backend/README.md`의 운영 환경변수 참고).
+2. **서명 키** (처음 한 번):
+
+   ```powershell
+   keytool -genkey -v -keystore android\upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+   ```
+
+   `android/key.properties`를 만듭니다. 키와 이 파일은 저장소에 올리지 않습니다 (`.gitignore`에 있음).
+
+   ```properties
+   storeFile=../upload-keystore.jks
+   storePassword=...
+   keyAlias=upload
+   keyPassword=...
+   ```
+
+   `key.properties`가 없으면 출시 빌드도 디버그 키로 서명됩니다 (스토어에 올릴 수 없음).
+3. **푸시 (선택)**: Firebase 콘솔에서 프로젝트를 만들고 Android 앱(`com.backpackcorp.backpack`)과 iOS 앱(같은 번들 ID)을 추가합니다.
+   앱에는 위 `FIREBASE_*` 값을 넣고, 서버에는 서비스 계정 키 파일을 `FIREBASE_CREDENTIALS_PATH`로 지정합니다.
+   iOS는 Apple Developer에서 APNs 키를 만들어 Firebase에 올리고, Xcode에서 Push Notifications · Background Modes(Remote notifications)를 켭니다.
+4. **빌드**:
+
+   ```powershell
+   flutter build appbundle --release --dart-define=API_BASE_URL=https://api.example.com   # Play 스토어 (.aab)
+   flutter build apk --release --dart-define=API_BASE_URL=https://api.example.com         # 직접 설치 (.apk)
+   flutter build ipa --release --dart-define=API_BASE_URL=https://api.example.com         # iOS (macOS에서)
+   ```
+
+앱 아이콘은 `assets/icon/`에 있고 `tool/make_icon.py`로 다시 만들 수 있습니다. 바꾼 뒤 `dart run flutter_launcher_icons`를 실행합니다.
 
 ## 검증
 
 ```powershell
-dart analyze
+flutter analyze
 flutter test
 ```
 
-초기 생성 후 Dart 정적 분석에서 문제가 없었으며 기본 위젯 테스트 1개가 통과했습니다.
-현재 환경의 `flutter analyze`는 분석 서버의 JSON 파싱 오류로 종료되어 `dart analyze`로 검증했습니다.
-Android 디버그 APK 빌드, 에뮬레이터 설치 및 Flutter 실행을 확인했습니다. 실제 휴대폰 실행은 아직 검증하지 않았습니다.
+`test/`에는 화면 없이 도는 단위 테스트(형식 · API 클라이언트 토큰 재발급 · 오류 변환)와 로그인 화면 위젯 테스트가 있습니다.
 
-## 구현 방향
+## 폴더 구조
 
-여행 생성·초대 코드 참여부터 시작하여 일정, 경비, OCR, 최종 정산 기능을 순서대로 추가합니다.
-기능별 코드는 필요할 때 `lib/features/` 아래에 구성하고 공통 UI와 서버 통신 코드는 `lib/core/`로 분리합니다.
-백엔드 API 연결과 외부 서비스 연동은 아직 구현되지 않았습니다.
+```
+lib/
+├── main.dart · app.dart     시작, 로그인 상태에 따라 첫 화면 선택, 푸시를 누르면 해당 화면으로 이동
+├── core/
+│   ├── config/              --dart-define 설정
+│   ├── network/             ApiClient (토큰 · 재발급 · 오류), JSON 도우미
+│   ├── push/                FCM 토큰 등록 · 수신
+│   ├── theme/ · widgets/    색 · 테마 · 공통 위젯
+│   └── utils/               금액 · 날짜 형식, 여행지 프리셋
+└── features/<기능>/
+    ├── data/                모델 · API 호출
+    └── presentation/        화면
+```
 
 ## Android Studio 설정 및 실행
 
@@ -121,7 +197,7 @@ flutter pub get
 
 1. 상단 실행 기기 목록에서 켜진 Android 에뮬레이터 또는 연결한 휴대폰을 선택합니다.
 2. `lib/main.dart`를 열고 `Run`을 실행합니다. 실행 구성이 없다면 파일을 우클릭해 `Run 'main.dart'`를 선택하세요.
-3. 기본 카운터 화면이 표시되면 초기 실행이 완료된 것입니다.
+3. 시작 화면(로그인 · 회원가입)이 표시되면 초기 실행이 완료된 것입니다. 로그인하려면 서버가 떠 있어야 합니다.
 4. Dart 화면 코드를 수정한 뒤 `Hot Reload`로 변경을 반영합니다. 초기화 코드 변경 등은 `Hot Restart`, 네이티브 설정 변경은 앱을 중지하고 다시 실행해야 할 수 있습니다.
 
 실행 대상에 Windows를 선택하면 `No Windows desktop project configured` 오류가 납니다. 이 프로젝트는 Android·iOS용으로 생성했습니다.
@@ -160,29 +236,11 @@ flutter run
 
 공식 안내: [Flutter의 Android Studio 설정](https://docs.flutter.dev/tools/android-studio), [Android 개발 환경 설정](https://docs.flutter.dev/platform-integration/android/setup)
 
-## 프론트엔드 경비 화면
-
-구조와 데이터 형식은 [Flutter 규칙](docs/convention/frontend/flutter.md)과
-[API 명세의 지출 항목](docs/api/README.md#9-지출)을 따릅니다.
-
-- `lib/features/expense/data/`: 지출 요청 DTO, 데이터 공급 인터페이스, 샘플 데이터
-- `lib/features/expense/presentation/`: 화면, 상태 관리, 화면용 계산, 문구와 위젯
-- 홈의 **경비 → 항목별 경비 나누기**에서 확인할 수 있습니다.
-
-현재는 샘플 데이터를 사용하며 서버에 저장하지 않습니다.
-`ExpenseSplitController.createRequest()`는 명세의 지출 추가 요청을 준비합니다.
-고정 환율 샘플은 `MANUAL` 모드이며, `EQUAL`은 총액 항목 하나,
-`ITEM`은 항목별 멤버 ID 목록을 보냅니다.
-미리보기에서 계산한 원화·분담액은 요청에 넣지 않습니다.
-서버 연결 시 조회 코드를 `ExpenseSplitRepository`로 제공하고,
-저장 결과의 환율·분담액은 서버 응답을 기준으로 표시해야 합니다.
-
 ## 백엔드 (Spring Boot)
 
 `backend/` 폴더는 앱이 사용하는 REST API 서버입니다. 자세한 실행 방법과 개발 규칙은 [`backend/README.md`](backend/README.md)를 참고하세요.
 
-현재 상태: DB 테이블, 엔티티, 공통 설정(예외·보안·토큰·이미지 저장·캐시)이 준비되어 있고, API 컨트롤러는 아직 구현 전입니다.
-로그인 기능이 생기기 전까지는 개발용으로 모든 요청을 토큰 없이 허용합니다.
+인증 · 여행 · 일정 · 투표 · 준비 업무 · 지출 · 환율 · 예산 · 정산 · 알림 API가 모두 구현되어 있습니다. 회원가입 · 로그인 · 토큰 재발급과 이미지 파일을 빼면 모든 요청에 액세스 토큰이 필요합니다.
 
 ### 기술 스택
 

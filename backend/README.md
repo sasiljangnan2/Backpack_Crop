@@ -6,7 +6,7 @@ Spring Boot 4 · Java 21 · MySQL 8.4 · Redis 8 · Flyway
 
 ## 로컬 실행
 
-Java 21과 Docker가 필요하다.
+Java 21과 Docker가 필요하다. (Docker 없이 PC에 설치한 MySQL 8 · Redis를 써도 된다. `.env`의 접속 정보만 맞추면 된다.)
 
 ```bash
 cp .env.example .env        # 로컬 설정. JWT_SECRET이 없으면 서버가 뜨지 않는다
@@ -54,8 +54,23 @@ src/main/java/com/backpackcorp/backpack
 - **여행 멤버 확인**: `tripMemberGuard.requireMember(tripId, user.getId())`. 멤버가 아니면 403이다.
 - **목록 응답**: `SliceCursorPageResponse` (커서 방식, 무한 스크롤용).
 - **이미지**: `ImageStorage.store()`가 돌려준 키를 DB에 저장하고, 응답에는 `url(key)`를 내려준다. 로컬에서는 `storage/`에 쌓인다.
-- **시각**: `Instant`(UTC)로 저장하고 ISO-8601 문자열로 응답한다.
-- **인증**: 지금은 개발용으로 모든 요청이 토큰 없이 열려 있다 (`SecurityConfig`의 TODO). 운영 배포 전에 되돌린다.
+- **시각**: `Instant`(UTC)로 저장하고 ISO-8601 문자열로 응답한다. 일정의 날짜·시각은 여행지 현지 기준(`trips.time_zone`)이다.
+- **지금 시각**: `LocalDate.now()` 대신 `Clock` 빈을 주입받는다. 시연 때는 `APP_DEMO_NOW=2026-10-03T05:50:00Z`로 고정할 수 있다.
+- **인증**: `/api/auth/signup · login · reissue`와 `/files/**`만 토큰 없이 열려 있다. 나머지는 모두 `Authorization: Bearer {액세스 토큰}`이 필요하다.
+- **금액 계산**: 원화 환산·끝전·송금 경로는 `ExpenseSplitCalculator`, `SettlementCalculator`(순수 함수)에 있다. 규칙을 바꾸면 그 테스트부터 고친다.
+- **알림**: 서비스에서 `TripNotificationEvent`를 발행하면 `NotificationService`가 같은 트랜잭션에서 알림함에 저장하고, 커밋 뒤 `PushSender`가 따로(비동기) FCM을 보낸다. 받는 사람의 알림 설정 · 본인 제외는 `NotificationService`가 처리한다.
+- **환율**: `ExchangeRateService`가 DB에 없으면 `ExchangeRateCollector`로 외부 API(`budget/service/rate`의 `ExchangeRateProvider` 구현들, `@Order` 순서)를 부른다. 2시간마다 `ExchangeRateScheduler`가 쓰는 통화의 오늘 환율을 미리 받는다. 테스트는 `exchange-rate.fetch-enabled: false`로 외부를 부르지 않는다.
+
+## 로컬에서 API 직접 호출해 보기
+
+```bash
+# 더미 계정으로 로그인 → accessToken 복사
+curl -s -X POST localhost:8080/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"host@backpack.dev","password":"backpack1234"}'
+
+# 내 여행 목록
+curl -s localhost:8080/api/trips -H "Authorization: Bearer {accessToken}"
+```
 
 ## 운영 환경변수
 
@@ -68,6 +83,16 @@ src/main/java/com/backpackcorp/backpack
 | `JWT_SECRET` | 32바이트 이상. `openssl rand -base64 48`로 만든다 |
 | `STORAGE_PUBLIC_BASE_URL` | 이미지 주소의 앞부분. 예: `https://api.example.com/files` |
 | `FIREBASE_CREDENTIALS_PATH` | FCM 서비스 계정 키 파일 경로. 푸시를 끄려면 빈 값으로 둔다 |
+
+선택
+
+| 변수 | 설명 |
+|---|---|
+| `EXIM_API_KEY` | 한국수출입은행 현재환율 API 인증키 (수출입은행 Open API에서 신청). 없으면 Frankfurter(ECB) → ExchangeRate-API만 쓴다 |
+| `EXCHANGE_RATE_FETCH_ENABLED` | 기본 `true`. `false`면 외부 환율 API를 부르지 않고 DB에 쌓인 값만 쓴다 |
+| `APP_DEMO_NOW` | 시연용 고정 시각. **운영에서는 설정하지 않는다.** |
+
+운영 서버는 HTTPS 뒤(로드밸런서 · 리버스 프록시)에 둔다. 출시 앱은 http 서버에 접속하지 않는다.
 
 이미지는 컨테이너의 `/app/storage`에 쌓이므로 볼륨을 붙여 실행한다.
 
