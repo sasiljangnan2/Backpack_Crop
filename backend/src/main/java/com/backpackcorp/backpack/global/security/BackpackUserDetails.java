@@ -10,6 +10,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 
+import com.backpackcorp.backpack.global.exception.BaseException;
+import com.backpackcorp.backpack.global.exception.ErrorCode;
 import com.backpackcorp.backpack.user.domain.Role;
 
 import lombok.Getter;
@@ -32,6 +34,15 @@ public class BackpackUserDetails implements UserDetails {
 			// 서명은 유효하지만 클레임이 발급 형식과 다른 토큰(예: 없어진 role)은 500이 아니라 401로 거부한다
 			throw new InvalidBearerTokenException("토큰 클레임이 올바르지 않습니다", e);
 		}
+	}
+
+	// 컨트롤러용. 토큰 없이 들어온 요청이면 null이므로 401로 끊는다
+	// (SecurityConfig가 개발용 permitAll인 동안에도 NPE 대신 올바른 응답이 나가게 한다)
+	public static UUID requireId(BackpackUserDetails user) {
+		if (user == null) {
+			throw new BaseException(ErrorCode.UNAUTHORIZED);
+		}
+		return user.getId();
 	}
 
 	// role "USER" → 권한 "ROLE_USER" (hasRole("USER")로 검사)

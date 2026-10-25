@@ -3,6 +3,8 @@ package com.backpackcorp.backpack.trip.domain;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
@@ -35,6 +37,7 @@ import lombok.NoArgsConstructor;
 public class TripMember extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "trip_id", nullable = false)
 	private Trip trip;
 
@@ -76,5 +79,36 @@ public class TripMember extends BaseEntity {
 		this.displayName = displayName;
 		this.guestTokenHash = guestTokenHash;
 		this.prepaidRate = prepaidRate;
+	}
+
+	public boolean isActive() {
+		return leftAt == null;
+	}
+
+	public boolean isHost() {
+		return role == TripMemberRole.HOST;
+	}
+
+	// 멤버 행은 지우지 않는다. 지출·정산 기록이 이 멤버를 가리키고 있기 때문이다
+	public void leave(Instant now) {
+		this.leftAt = now;
+	}
+
+	public void rejoin() {
+		this.leftAt = null;
+		this.role = TripMemberRole.MEMBER;
+	}
+
+	public void changeRole(TripMemberRole role) {
+		this.role = role;
+	}
+
+	public void changePrepaidRate(BigDecimal prepaidRate) {
+		this.prepaidRate = prepaidRate;
+	}
+
+	// 탈퇴하면 회원 이름을 볼 수 없으므로 그 시점 이름을 남긴다
+	public void keepDisplayName(String name) {
+		this.displayName = name;
 	}
 }

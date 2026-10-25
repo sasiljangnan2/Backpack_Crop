@@ -3,6 +3,9 @@ package com.backpackcorp.backpack.schedule.domain;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import com.backpackcorp.backpack.global.entity.BaseTimeEntity;
 import com.backpackcorp.backpack.trip.domain.Trip;
 import com.backpackcorp.backpack.trip.domain.TripMember;
@@ -29,6 +32,7 @@ import lombok.NoArgsConstructor;
 public class Schedule extends BaseTimeEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "trip_id", nullable = false)
 	private Trip trip;
 
@@ -60,6 +64,7 @@ public class Schedule extends BaseTimeEntity {
 	private String memo;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "created_by_member_id", nullable = false)
 	private TripMember createdBy;
 
@@ -70,7 +75,7 @@ public class Schedule extends BaseTimeEntity {
 
 	@Builder
 	private Schedule(Trip trip, LocalDate day, LocalTime startTime, LocalTime endTime, String title, String placeText,
-		String memo, TripMember createdBy) {
+		String memo, TripMember createdBy, Boolean locked, ReservationStatus reservationStatus) {
 		this.trip = trip;
 		this.day = day;
 		this.startTime = startTime;
@@ -79,5 +84,29 @@ public class Schedule extends BaseTimeEntity {
 		this.placeText = placeText;
 		this.memo = memo;
 		this.createdBy = createdBy;
+		this.locked = locked != null && locked;
+		this.reservationStatus = reservationStatus != null ? reservationStatus : ReservationStatus.NONE;
+	}
+
+	public void changeTime(LocalDate day, LocalTime startTime, LocalTime endTime) {
+		this.day = day;
+		this.startTime = startTime;
+		this.endTime = endTime;
+	}
+
+	public void changeDetails(String title, String placeText, String memo, ReservationStatus reservationStatus) {
+		this.title = title;
+		this.placeText = placeText;
+		this.memo = memo;
+		this.reservationStatus = reservationStatus;
+	}
+
+	public void changeLocked(boolean locked) {
+		this.locked = locked;
+	}
+
+	// [start, end) 구간이 겹치는지. 끝나는 시각에 다음 일정이 시작하는 것은 겹침이 아니다
+	public boolean overlaps(LocalTime start, LocalTime end) {
+		return start.isBefore(endTime) && end.isAfter(startTime);
 	}
 }

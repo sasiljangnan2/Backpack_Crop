@@ -1,5 +1,7 @@
 package com.backpackcorp.backpack.poll.domain;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -28,6 +30,7 @@ import lombok.NoArgsConstructor;
 public class PollOption extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "poll_id", nullable = false)
 	private Poll poll;
 

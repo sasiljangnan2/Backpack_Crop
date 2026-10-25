@@ -48,7 +48,7 @@ import jakarta.servlet.DispatcherType;
 public class SecurityConfig {
 
 	// 토큰 없이 여는 경로(인증 API, 저장된 이미지). 이 경로에서는 Authorization 헤더도 읽지 않는다 (bearerTokenResolver 참고).
-	// 지금은 개발용 permitAll이라 다른 경로도 토큰 없이 열려 있다
+	// 그 밖의 모든 경로는 유효한 액세스 토큰이 있어야 한다
 	private static final PathPatternRequestMatcher.Builder PATH = PathPatternRequestMatcher.withDefaults();
 	private static final RequestMatcher PUBLIC_APIS = new OrRequestMatcher(
 		PATH.matcher(HttpMethod.POST, "/api/auth/signup"),
@@ -71,10 +71,7 @@ public class SecurityConfig {
 			// 토큰을 쿠키가 아닌 Authorization 헤더로 받으므로 CSRF 보호가 필요 없다
 			.csrf(AbstractHttpConfigurer::disable)
 			.httpBasic(AbstractHttpConfigurer::disable)
-			// TODO(로그인·로그아웃): Spring Security 기본 formLogin / logout으로 구현할 예정. 그때까지 꺼 둔다.
-			//  - UserDetailsService 빈이 있어야 한다 (없으면 로그인이 항상 실패)
-			//  - 세션을 쓰지 않으므로 로그인 성공 시 리다이렉트 대신 토큰을 응답해야 한다
-			//  - 로그인 URL은 PUBLIC_APIS와 맞춘다
+			// 로그인·로그아웃은 AuthController가 JSON으로 받아 토큰을 응답한다 (세션·리다이렉트를 쓰지 않는다)
 			.formLogin(AbstractHttpConfigurer::disable)
 			.logout(AbstractHttpConfigurer::disable)
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -82,10 +79,7 @@ public class SecurityConfig {
 				// 컨테이너가 /error로 넘긴 오류(잘못된 URL의 400 등)가 401로 가려지지 않게 한다
 				.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 				.requestMatchers(PUBLIC_APIS).permitAll()
-				// TODO(개발용): 로그인이 구현되기 전까지 토큰 없이도 모든 요청을 허용한다.
-				//  운영 배포 전에 .anyRequest().authenticated() 로 되돌리고
-				//  SecurityConfigTest의 @Disabled 테스트를 다시 켤 것
-				.anyRequest().permitAll())
+				.anyRequest().authenticated())
 			// Authorization: Bearer <액세스 토큰> 을 검증해 인증 정보로 바꾼다
 			.oauth2ResourceServer(oauth2 -> oauth2
 				.bearerTokenResolver(bearerTokenResolver)

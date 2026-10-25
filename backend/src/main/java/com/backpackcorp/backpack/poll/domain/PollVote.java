@@ -2,6 +2,8 @@ package com.backpackcorp.backpack.poll.domain;
 
 import java.time.Instant;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.springframework.data.annotation.LastModifiedDate;
 
 import com.backpackcorp.backpack.global.entity.BaseEntity;
@@ -31,15 +33,18 @@ import lombok.NoArgsConstructor;
 public class PollVote extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "poll_id", nullable = false)
 	private Poll poll;
 
 	// 같은 투표의 후보여야 한다 (애플리케이션에서 검증)
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "option_id", nullable = false)
 	private PollOption option;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "member_id", nullable = false)
 	private TripMember member;
 
@@ -52,5 +57,9 @@ public class PollVote extends BaseEntity {
 		this.poll = poll;
 		this.option = option;
 		this.member = member;
+	}
+
+	public void changeOption(PollOption option) {
+		this.option = option;
 	}
 }

@@ -2,6 +2,8 @@ package com.backpackcorp.backpack.expense.domain;
 
 import java.math.BigDecimal;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -26,6 +28,7 @@ import lombok.NoArgsConstructor;
 public class ExpenseItem extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "expense_id", nullable = false)
 	private Expense expense;
 

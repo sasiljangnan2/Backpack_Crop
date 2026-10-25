@@ -1,5 +1,8 @@
 package com.backpackcorp.backpack.task.domain;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import com.backpackcorp.backpack.global.entity.BaseTimeEntity;
 import com.backpackcorp.backpack.trip.domain.Trip;
 import com.backpackcorp.backpack.trip.domain.TripMember;
@@ -25,15 +28,18 @@ import lombok.NoArgsConstructor;
 public class Task extends BaseTimeEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "trip_id", nullable = false)
 	private Trip trip;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "creator_member_id", nullable = false)
 	private TripMember creator;
 
 	// 미지정 허용
 	@ManyToOne(fetch = FetchType.LAZY)
+	@OnDelete(action = OnDeleteAction.SET_NULL)
 	@JoinColumn(name = "assignee_member_id")
 	private TripMember assignee;
 
@@ -54,5 +60,18 @@ public class Task extends BaseTimeEntity {
 		this.assignee = assignee;
 		this.scope = scope;
 		this.title = title;
+	}
+
+	public void changeTitle(String title) {
+		this.title = title;
+	}
+
+	// null이면 담당자를 비운다
+	public void assign(TripMember assignee) {
+		this.assignee = assignee;
+	}
+
+	public void changeDone(boolean done) {
+		this.done = done;
 	}
 }

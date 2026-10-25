@@ -5,5 +5,8 @@ package com.backpackcorp.backpack.notification.domain;
 public enum NotificationRefType {
 	SCHEDULE,
 	EXPENSE,
-	SETTLEMENT_SHARE
+	SETTLEMENT_SHARE,
+	POLL,
+	TASK,
+	TRIP
 }

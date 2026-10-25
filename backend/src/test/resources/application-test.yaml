@@ -22,3 +22,7 @@ storage:
 
 jwt:
   secret: test-only-secret-at-least-32-bytes-long
+
+# 테스트는 외부 환율 API를 부르지 않는다 (DB에 넣은 값만 쓴다)
+exchange-rate:
+  fetch-enabled: false

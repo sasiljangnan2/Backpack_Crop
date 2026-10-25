@@ -67,6 +67,23 @@ firebase:
   # FCM 서비스 계정 키(JSON) 파일 경로. 비워 두면 푸시 발송이 꺼진다
   credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
 
+# 환율 수집 (budget.service.rate). 저장한 값은 exchange_rates에 쌓이고 다시 바뀌지 않는다
+exchange-rate:
+  # false면 외부 API를 부르지 않고 DB에 있는 값만 쓴다 (테스트·오프라인 개발)
+  fetch-enabled: ${EXCHANGE_RATE_FETCH_ENABLED:true}
+  # 한국수출입은행 인증키. 있으면 가장 먼저 쓰고, 없으면 ECB(frankfurter) → open.er-api 순서로 쓴다
+  exim-api-key: ${EXIM_API_KEY:}
+  # 미리 받아 둘 통화 (여행에 쓰이는 통화는 자동으로 더한다)
+  default-currencies: JPY,USD,EUR,CNY,TWD,HKD,THB,VND,SGD,PHP,GBP,AUD
+  # 한국 시간 기준 2시간마다 20분에
+  collect-cron: "0 20 */2 * * *"
+
+app:
+  demo:
+    # 시연용 고정 시각 (ISO-8601 UTC, 예: 2026-10-03T05:50:00Z = 도쿄 14:50). 비워 두면 실제 시각
+    # 운영에서는 설정하지 않는다
+    now: ${APP_DEMO_NOW:}
+
 jwt:
   # 어떤 프로필에도 기본값을 두지 않는다. 없으면 기동 실패 (로컬은 .env에 설정, dev 프로필만 .env를 읽는다)
   secret: ${JWT_SECRET}

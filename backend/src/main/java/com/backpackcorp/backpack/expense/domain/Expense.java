@@ -3,6 +3,9 @@ package com.backpackcorp.backpack.expense.domain;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import com.backpackcorp.backpack.global.entity.BaseTimeEntity;
 import com.backpackcorp.backpack.trip.domain.Trip;
 import com.backpackcorp.backpack.trip.domain.TripMember;
@@ -29,15 +32,18 @@ import lombok.NoArgsConstructor;
 public class Expense extends BaseTimeEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "trip_id", nullable = false)
 	private Trip trip;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "payer_member_id", nullable = false)
 	private TripMember payer;
 
 	// payer와 다르면 대리 입력
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "creator_member_id", nullable = false)
 	private TripMember creator;
 
@@ -98,5 +104,19 @@ public class Expense extends BaseTimeEntity {
 		this.rateDate = rateDate;
 		this.amountKrw = amountKrw;
 		this.splitMethod = splitMethod;
+	}
+
+	// 수정은 전체 교체다. 작성자(creator)와 여행은 바뀌지 않는다
+	public void replaceWith(Expense source) {
+		this.payer = source.payer;
+		this.title = source.title;
+		this.category = source.category;
+		this.paidDate = source.paidDate;
+		this.amountLocal = source.amountLocal;
+		this.rateMode = source.rateMode;
+		this.appliedRate = source.appliedRate;
+		this.rateDate = source.rateDate;
+		this.amountKrw = source.amountKrw;
+		this.splitMethod = source.splitMethod;
 	}
 }
