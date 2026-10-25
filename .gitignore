@@ -50,3 +50,6 @@ app.*.map.json
 # Local document/image outputs and JavaScript dependencies
 /outputs/
 node_modules/
+
+# IDE-generated Java resources
+/backend/bin/

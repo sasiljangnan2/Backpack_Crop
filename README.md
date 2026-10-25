@@ -165,17 +165,20 @@ flutter run
 구조와 데이터 형식은 [Flutter 규칙](docs/convention/frontend/flutter.md)과
 [API 명세의 지출 항목](docs/api/README.md#9-지출)을 따릅니다.
 
-- `lib/features/expense/data/`: 지출 요청 DTO, 데이터 공급 인터페이스, 샘플 데이터
-- `lib/features/expense/presentation/`: 화면, 상태 관리, 화면용 계산, 문구와 위젯
-- 홈의 **경비 → 항목별 경비 나누기**에서 확인할 수 있습니다.
+홈의 **경비 → 지출 추가 → 분담 정하기 → 이 분담으로 적용** 순서로 확인합니다.
+지출명·날짜·카테고리·결제자·엔화/원화·여러 항목을 입력할 수 있고,
+등록한 지출을 눌러 상세 내역을 보거나 수정할 수 있습니다.
 
-현재는 샘플 데이터를 사용하며 서버에 저장하지 않습니다.
-`ExpenseSplitController.createRequest()`는 명세의 지출 추가 요청을 준비합니다.
-고정 환율 샘플은 `MANUAL` 모드이며, `EQUAL`은 총액 항목 하나,
-`ITEM`은 항목별 멤버 ID 목록을 보냅니다.
-미리보기에서 계산한 원화·분담액은 요청에 넣지 않습니다.
-서버 연결 시 조회 코드를 `ExpenseSplitRepository`로 제공하고,
-저장 결과의 환율·분담액은 서버 응답을 기준으로 표시해야 합니다.
+- `lib/features/expense/data/`: 요청 DTO, 데이터 공급 인터페이스, 샘플 저장소
+- `lib/features/expense/presentation/`: 목록·입력·분담·상세 화면, 상태 관리, 문구·위젯
+- `ExpenseSplitController.createRequest()`: 기존 지출 추가 API 명세의 요청 바디
+
+샘플 지출은 같은 앱 실행 중 탭을 바꾸어도 유지됩니다. 앱을 완전히 종료하면 초기화됩니다.
+서버 API는 호출하지 않으며 원화 환산·분담액은 화면용 미리보기입니다.
+엔화는 직접 입력한 환율의 `MANUAL` 모드, 원화는 `KRW` 모드를 사용합니다.
+`EQUAL`은 총액 항목 하나, `ITEM`은 항목별 멤버 ID 목록을 준비합니다.
+미리보기의 원화 환산·분담액을 서버 계산 결과로 확정하지 않습니다.
+서버 연결 시 `ExpenseRepository`를 구현하고 저장 응답의 금액과 분담액을 표시해야 합니다.
 
 ## 백엔드 (Spring Boot)
 
