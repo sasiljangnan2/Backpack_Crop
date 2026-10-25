@@ -1,8 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 서버 API 호출 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 안드로이드 13 이상에서 푸시 알림을 보여 주려면 사용자 허락이 필요하다 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- 출시 빌드는 HTTPS만 쓴다 (network_security_config). 디버그 빌드만 로컬 서버(http) 허용 -->
     <application
-        android:label="backpack"
+        android:label="Backpack"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"

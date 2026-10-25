@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 디버그 빌드: 로컬 개발 서버(에뮬레이터의 10.0.2.2, PC IP)에 http로 붙을 수 있게 한다 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'core/theme/app_colors.dart';
+import '../../../core/app_services.dart';
+import '../../../core/network/api_exception.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/common.dart';
 
 const _primary = AppColors.primary;
 const _ink = AppColors.ink;
@@ -23,6 +26,8 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _agreed = false;
   bool _hidePassword = true;
   bool _hideConfirmation = true;
+  bool _busy = false;
+  String? _emailError;
 
   bool get _passwordValid =>
       _password.text.length >= 8 &&
@@ -59,11 +64,37 @@ class _SignupScreenState extends State<SignupScreen> {
     if (mounted && agreed == true) setState(() => _agreed = true);
   }
 
-  void _submit() {
-    if (!_form.currentState!.validate() || !_agreed) return;
+  Future<void> _submit() async {
+    setState(() => _emailError = null);
+    if (!_form.currentState!.validate() || !_agreed) {
+      return;
+    }
     FocusManager.instance.primaryFocus?.unfocus();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('회원가입 기능은 준비 중이에요.')));
+    setState(() => _busy = true);
+    try {
+      await services.auth.signup(
+        email: _email.text,
+        password: _password.text,
+        name: _name.text,
+      );
+      // 로그인 상태가 되면 앱 루트가 여행 목록으로 바꾼다. 쌓인 시작 화면을 닫는다
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } on ApiException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      if (e.code == 'EMAIL_ALREADY_EXISTS' || e.details.containsKey('email')) {
+        setState(() => _emailError = e.details['email'] ?? e.message);
+      } else {
+        showError(context, e);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
   }
 
   @override
@@ -121,6 +152,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           hint: '이메일을 입력해 주세요',
                           keyboardType: TextInputType.emailAddress,
                           autofillHints: const [AutofillHints.email],
+                          errorText: _emailError,
                           validator: (value) =>
                               _emailValid ? null : '올바른 이메일 주소를 입력해 주세요.',
                         ),
@@ -255,7 +287,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _ready ? _submit : null,
+                      onPressed: _ready && !_busy ? _submit : null,
                       style: FilledButton.styleFrom(
                         backgroundColor: _primary,
                         disabledBackgroundColor: AppColors.disabled,
@@ -269,7 +301,16 @@ class _SignupScreenState extends State<SignupScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      child: const Text('가입하고 시작하기'),
+                      child: _busy
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('가입하고 시작하기'),
                     ),
                   ),
                 ),
@@ -287,6 +328,7 @@ class _SignupScreenState extends State<SignupScreen> {
     required String hint,
     required FormFieldValidator<String> validator,
     String? helper,
+    String? errorText,
     bool obscure = false,
     Widget? suffix,
     TextInputType keyboardType = TextInputType.text,
@@ -328,11 +370,16 @@ class _SignupScreenState extends State<SignupScreen> {
             enableSuggestions: label == '이름',
             style: const TextStyle(fontSize: 15, color: _ink),
             autovalidateMode: AutovalidateMode.onUserInteraction,
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => setState(() {
+              if (label == '이메일') {
+                _emailError = null;
+              }
+            }),
             validator: validator,
             decoration: InputDecoration(
               hintText: hint,
               helperText: helper,
+              errorText: errorText,
               suffixIcon: suffix,
               hintStyle: const TextStyle(fontSize: 14, color: AppColors.muted),
               helperStyle: const TextStyle(fontSize: 12, color: _muted),
@@ -412,8 +459,8 @@ class _TermsSheet extends StatelessWidget {
                       '이 약관은 Backpack이 제공하는 그룹 여행 일정·경비 관리 기능의 이용 조건과 절차를 정합니다.',
                     ),
                     (
-                      '제2조 (회원과 게스트)',
-                      '회원은 이메일로 가입한 이용자를, 게스트는 초대 코드와 이름만으로 여행에 참여한 이용자를 말합니다. 게스트는 조회와 투표 기능을 사용할 수 있습니다.',
+                      '제2조 (회원)',
+                      '회원은 이메일로 가입한 이용자를 말합니다. 회원은 여행을 만들거나 초대 코드로 다른 회원의 여행에 참여할 수 있습니다.',
                     ),
                     (
                       '제3조 (여행 정보의 공유)',
@@ -421,7 +468,11 @@ class _TermsSheet extends StatelessWidget {
                     ),
                     (
                       '제4조 (정산 결과)',
-                      '서비스가 계산한 정산 금액은 참고용이며, 실제 송금은 서비스 밖에서 이루어집니다.',
+                      '서비스가 계산한 정산 금액은 참고용이며, 실제 송금은 서비스 밖에서 이루어집니다. 환율은 한국수출입은행·유럽중앙은행 등 공개 자료를 기준으로 하며 실제 결제 환율과 다를 수 있습니다.',
+                    ),
+                    (
+                      '제5조 (탈퇴)',
+                      '회원은 언제든 내 정보 화면에서 탈퇴할 수 있습니다. 탈퇴해도 다른 참여자와 함께 기록한 지출·정산 내역은 여행에 남으며, 이름만 표시됩니다.',
                     ),
                   ]),
                   _termsContent([
@@ -430,16 +481,12 @@ class _TermsSheet extends StatelessWidget {
                       '수집: 이름, 이메일, 비밀번호(암호화 저장)\n목적: 회원 식별, 참여자 이름 표시\n보유 기간: 회원 탈퇴 시까지',
                     ),
                     (
-                      '게스트 참여',
-                      '수집: 이름, 기기 식별 토큰\n목적: 여행 참여자 식별\n보유 기간: 여행 삭제 시까지',
+                      '여행 기록',
+                      '수집: 일정, 지출, 정산, 준비 업무, 투표 내용\n목적: 같은 여행 참여자와 공유\n보유 기간: 여행 삭제 시까지',
                     ),
                     (
-                      '영수증 등록',
-                      '수집: 영수증 사진, 인식된 항목·금액\n목적: 지출 입력·정산\n보유 기간: 지출 삭제 시까지',
-                    ),
-                    (
-                      'AI 일정 재구성',
-                      '수집: 현재 위치(요청할 때만)\n목적: 다음 활동 추천\n보유 기간: 추천 후 바로 삭제',
+                      '알림',
+                      '수집: 기기 푸시 토큰\n목적: 일정·지출·정산 알림 발송\n보유 기간: 로그아웃 또는 탈퇴 시까지',
                     ),
                   ]),
                 ],
@@ -475,7 +522,7 @@ class _TermsSheet extends StatelessWidget {
     padding: const EdgeInsets.all(24),
     children: [
       const Text(
-        '화면 시안용 예시 · 실제 약관은 서비스 출시 전 확정됩니다.',
+        '시행일: 2026년 11월 1일',
         style: TextStyle(color: _muted, fontSize: 12),
       ),
       const SizedBox(height: 20),
