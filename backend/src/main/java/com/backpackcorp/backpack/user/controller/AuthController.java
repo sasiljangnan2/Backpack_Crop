@@ -7,8 +7,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.backpackcorp.backpack.user.dto.LoginRequest;
 import com.backpackcorp.backpack.user.dto.SignupRequest;
 import com.backpackcorp.backpack.user.dto.SignupResponse;
+import com.backpackcorp.backpack.user.dto.TokenResponse;
 import com.backpackcorp.backpack.user.service.AuthService;
 
 import jakarta.validation.Valid;
@@ -28,5 +30,11 @@ public class AuthController {
 	@ResponseStatus(HttpStatus.CREATED)
 	public SignupResponse signup(@Valid @RequestBody SignupRequest request) {
 		return authService.signup(request);
+	}
+
+	// 상태 코드를 따로 적지 않으면 200 OK로 나간다
+	@PostMapping("/login")
+	public TokenResponse login(@Valid @RequestBody LoginRequest request) {
+		return authService.login(request);
 	}
 }

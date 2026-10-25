@@ -6,9 +6,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.backpackcorp.backpack.global.exception.BaseException;
 import com.backpackcorp.backpack.global.exception.ErrorCode;
+import com.backpackcorp.backpack.global.security.TokenService;
 import com.backpackcorp.backpack.user.domain.User;
+import com.backpackcorp.backpack.user.dto.LoginRequest;
 import com.backpackcorp.backpack.user.dto.SignupRequest;
 import com.backpackcorp.backpack.user.dto.SignupResponse;
+import com.backpackcorp.backpack.user.dto.TokenResponse;
 import com.backpackcorp.backpack.user.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,8 @@ public class AuthService {
 	private final UserRepository userRepository;
 	// SecurityConfig에 등록된 빈. 저장 형식은 "{bcrypt}..."
 	private final PasswordEncoder passwordEncoder;
+	// 액세스 토큰은 JWT, 리프레시 토큰은 Redis에 저장된다 (global/security)
+	private final TokenService tokenService;
 
 	// DB에 쓰는 메서드라 readOnly를 풀어 준다
 	@Transactional
@@ -38,5 +43,21 @@ public class AuthService {
 			.name(request.name())
 			.build();
 		return SignupResponse.from(userRepository.save(user));
+	}
+
+	// MySQL에 쓰는 게 없으므로 클래스의 readOnly = true를 그대로 쓴다
+	public TokenResponse login(LoginRequest request) {
+		User user = userRepository.findByEmailAndDeletedAtIsNull(request.email())
+			.orElseThrow(() -> new BaseException(ErrorCode.UNAUTHORIZED));
+
+		// 저장된 값은 암호문이라 equals가 아니라 matches로 비교한다.
+		// 이메일이 없을 때와 같은 에러를 던져, 어떤 이메일이 가입돼 있는지 알려 주지 않는다
+		if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+			throw new BaseException(ErrorCode.UNAUTHORIZED);
+		}
+
+		return new TokenResponse(
+			tokenService.createAccessToken(user.getId(), user.getRole()),
+			tokenService.createRefreshToken(user.getId()));
 	}
 }
