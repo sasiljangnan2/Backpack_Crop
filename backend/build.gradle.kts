@@ -46,4 +46,12 @@ dependencies {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	// 멈춘 테스트가 CI를 붙잡지 않도록 60초가 넘으면 실패시킨다.
+	// 스레드 모드(SEPARATE_THREAD)는 쓰지 않는다. 테스트가 다른 스레드에서 돌면 @Transactional 롤백이 안 된다
+	systemProperty("junit.jupiter.execution.timeout.default", "60s")
+	// CI 로그에서 어느 테스트에서 멈췄는지 보이게 한다
+	testLogging {
+		events("started", "passed", "skipped", "failed")
+		exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+	}
 }
