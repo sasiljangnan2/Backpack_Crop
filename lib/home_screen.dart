@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core/theme/app_colors.dart';
-import 'features/expense/presentation/expense_split_screen.dart';
+import 'features/expense/presentation/expense_list_screen.dart';
+import 'features/expense/data/memory_expense_repository.dart';
 
 const _primary = AppColors.primary;
 const _ink = AppColors.ink;
@@ -18,6 +19,7 @@ class TravelHomeScreen extends StatefulWidget {
 }
 
 class _TravelHomeScreenState extends State<TravelHomeScreen> {
+  final _expenseRepository = MemoryExpenseRepository();
   int _tab = 0;
   bool _replanned = false;
   bool _recorded = false;
@@ -207,7 +209,14 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
           body: SafeArea(
             top: _tab != 0,
             bottom: false,
-            child: _tab == 0 ? _home() : _section(),
+            child: _tab == 0
+                ? _home()
+                : _tab == 2
+                ? ExpenseListScreen(
+                    repository: _expenseRepository,
+                    isEmbedded: true,
+                  )
+                : _section(),
           ),
           bottomNavigationBar: NavigationBar(
             height: 72,
@@ -775,65 +784,6 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
                       '쇼핑',
                     ),
                     _event('⌑', '17:30', '우메다 스카이빌딩', '예약 확정', locked: true),
-                  ],
-                ),
-              ),
-            ],
-            if (_tab == 2) ...[
-              FilledButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const ExpenseSplitScreen(),
-                  ),
-                ),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(54),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                icon: const Icon(Icons.call_split),
-                label: const Text(
-                  '항목별 경비 나누기',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _card(
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('여행 공동 지출', style: TextStyle(color: _muted)),
-                    SizedBox(height: 10),
-                    Text(
-                      '₩1,180,064',
-                      style: TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      '전체 예산 ₩2,000,000 · 59% 사용',
-                      style: TextStyle(color: _muted, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              _card(
-                Column(
-                  children: [
-                    _notice(
-                      Icons.restaurant_outlined,
-                      '이치란 라멘 난바점',
-                      '¥7,360 · 5명 나누기',
-                    ),
-                    _notice(
-                      Icons.local_activity_outlined,
-                      '우메다 스카이빌딩 입장권',
-                      '¥10,000 · 5명 나누기',
-                    ),
                   ],
                 ),
               ),
