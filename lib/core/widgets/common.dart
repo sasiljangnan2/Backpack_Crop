@@ -96,7 +96,7 @@ class MemberAvatar extends StatelessWidget {
   static const _palette = [
     AppColors.primaryText,
     Color(0xFF2D83F5),
-    Color(0xFF0B7A55),
+    Color(0xFFC2410C),
     Color(0xFF8B5CF6),
     Color(0xFFA35F00),
     Color(0xFF0E7490),

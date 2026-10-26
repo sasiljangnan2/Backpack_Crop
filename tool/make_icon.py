@@ -3,19 +3,19 @@
     python tool/make_icon.py
     dart run flutter_launcher_icons
 
-코랄 바탕(#EE5E52)에 흰 배낭. 안드로이드 적응형 아이콘용 전경(투명 바탕)도 함께 만든다.
+에메랄드 바탕(#009B77)에 흰 배낭. 안드로이드 적응형 아이콘용 전경(투명 바탕)도 함께 만든다.
 """
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-CORAL = (238, 94, 82, 255)
+BRAND = (0, 155, 119, 255)
 WHITE = (255, 255, 255, 255)
 SIZE = 1024
 OUT = Path(__file__).resolve().parent.parent / 'assets' / 'icon'
 
 
-def backpack(draw: ImageDraw.ImageDraw, scale: float, cx: float, cy: float, cut=CORAL) -> None:
+def backpack(draw: ImageDraw.ImageDraw, scale: float, cx: float, cy: float, cut=BRAND) -> None:
     def box(x0, y0, x1, y1):
         return [cx + x0 * scale, cy + y0 * scale, cx + x1 * scale, cy + y1 * scale]
 
@@ -37,7 +37,7 @@ def main() -> None:
 
     icon = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
     d = ImageDraw.Draw(icon)
-    d.rounded_rectangle([0, 0, SIZE, SIZE], radius=230, fill=CORAL)
+    d.rounded_rectangle([0, 0, SIZE, SIZE], radius=230, fill=BRAND)
     backpack(d, 1.35, SIZE / 2, SIZE / 2 + 20)
     icon.save(OUT / 'icon.png')
 

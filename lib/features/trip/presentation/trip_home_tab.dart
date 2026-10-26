@@ -222,6 +222,7 @@ class _Cover extends StatelessWidget {
                           _sub,
                           style: const TextStyle(
                             color: AppColors.coverText,
+                            shadows: AppColors.coverShadow,
                             fontSize: 12,
                           ),
                         ),
@@ -230,6 +231,7 @@ class _Cover extends StatelessWidget {
                           _headline,
                           style: const TextStyle(
                             color: Colors.white,
+                            shadows: AppColors.coverShadow,
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
                           ),
@@ -239,6 +241,7 @@ class _Cover extends StatelessWidget {
                           trip.destination,
                           style: const TextStyle(
                             color: AppColors.coverText,
+                            shadows: AppColors.coverShadow,
                             fontSize: 13,
                           ),
                         ),
@@ -256,6 +259,7 @@ class _Cover extends StatelessWidget {
                             String.fromCharCode(member.name.runes.first),
                             style: const TextStyle(
                               color: Colors.white,
+                              shadows: AppColors.coverShadow,
                               fontSize: 11,
                             ),
                           ),
@@ -268,6 +272,7 @@ class _Cover extends StatelessWidget {
                             '+${trip.members.length - 5}',
                             style: const TextStyle(
                               color: Colors.white,
+                              shadows: AppColors.coverShadow,
                               fontSize: 10,
                             ),
                           ),
@@ -786,7 +791,7 @@ class _SkylinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black.withValues(alpha: .22);
+    final paint = Paint()..color = AppColors.primaryText.withValues(alpha: .16);
     const heights = [
       .3, .7, .45, .9, .55, .35, .8, .5, 1.0, .4, .65, .3, .75, .5, .9, .4, //
     ];
