@@ -17,4 +17,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	// SELECT * FROM users WHERE email = ? AND deleted_at IS NULL 과 같다.
 	// 탈퇴 회원은 찾지 않으므로 로그인할 수 없다. 없을 수도 있어서 Optional로 받는다
 	Optional<User> findByEmailAndDeletedAtIsNull(String email);
+
+	// 리프레시 토큰에서 꺼낸 ID로 찾는다. 탈퇴 회원은 찾지 않으므로 재발급할 수 없다
+	Optional<User> findByIdAndDeletedAtIsNull(UUID id);
 }

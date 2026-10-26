@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.backpackcorp.backpack.user.dto.LoginRequest;
+import com.backpackcorp.backpack.user.dto.LogoutRequest;
+import com.backpackcorp.backpack.user.dto.ReissueRequest;
 import com.backpackcorp.backpack.user.dto.SignupRequest;
 import com.backpackcorp.backpack.user.dto.SignupResponse;
 import com.backpackcorp.backpack.user.dto.TokenResponse;
@@ -36,5 +38,17 @@ public class AuthController {
 	@PostMapping("/login")
 	public TokenResponse login(@Valid @RequestBody LoginRequest request) {
 		return authService.login(request);
+	}
+
+	@PostMapping("/reissue")
+	public TokenResponse reissue(@Valid @RequestBody ReissueRequest request) {
+		return authService.reissue(request);
+	}
+
+	// 돌려줄 내용이 없으므로 204
+	@PostMapping("/logout")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void logout(@Valid @RequestBody LogoutRequest request) {
+		authService.logout(request);
 	}
 }

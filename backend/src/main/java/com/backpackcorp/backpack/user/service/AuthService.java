@@ -1,5 +1,7 @@
 package com.backpackcorp.backpack.user.service;
 
+import java.util.UUID;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,6 +11,8 @@ import com.backpackcorp.backpack.global.exception.ErrorCode;
 import com.backpackcorp.backpack.global.security.TokenService;
 import com.backpackcorp.backpack.user.domain.User;
 import com.backpackcorp.backpack.user.dto.LoginRequest;
+import com.backpackcorp.backpack.user.dto.LogoutRequest;
+import com.backpackcorp.backpack.user.dto.ReissueRequest;
 import com.backpackcorp.backpack.user.dto.SignupRequest;
 import com.backpackcorp.backpack.user.dto.SignupResponse;
 import com.backpackcorp.backpack.user.dto.TokenResponse;
@@ -56,6 +60,26 @@ public class AuthService {
 			throw new BaseException(ErrorCode.UNAUTHORIZED);
 		}
 
+		return issueTokens(user);
+	}
+
+	// 쓴 리프레시 토큰은 30초 뒤 사라지므로, 앱은 응답의 새 리프레시 토큰으로 바꿔 저장해야 한다
+	public TokenResponse reissue(ReissueRequest request) {
+		UUID userId = tokenService.consumeRefreshToken(request.refreshToken())
+			.orElseThrow(() -> new BaseException(ErrorCode.UNAUTHORIZED));
+		// 새 액세스 토큰에 role을 넣어야 해서 ID만으로는 부족하다. 그 사이 탈퇴했으면 401
+		User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+			.orElseThrow(() -> new BaseException(ErrorCode.UNAUTHORIZED));
+		return issueTokens(user);
+	}
+
+	// 리프레시 토큰만 즉시 폐기한다. 액세스 토큰은 서버에 저장하지 않아 회수할 수 없으므로 앱이 지운다
+	public void logout(LogoutRequest request) {
+		tokenService.revokeRefreshToken(request.refreshToken());
+	}
+
+	// 로그인과 재발급이 같은 형식으로 토큰 2장을 내려준다
+	private TokenResponse issueTokens(User user) {
 		return new TokenResponse(
 			tokenService.createAccessToken(user.getId(), user.getRole()),
 			tokenService.createRefreshToken(user.getId()));
