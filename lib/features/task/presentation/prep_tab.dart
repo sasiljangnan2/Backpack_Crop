@@ -267,7 +267,7 @@ class _PrepTabState extends State<PrepTab> with TripTabRefresh {
                                     color:
                                         task.assignee?.memberId ==
                                             trip.myMemberId
-                                        ? AppColors.primary
+                                        ? AppColors.primaryText
                                         : AppColors.muted,
                                   ),
                                 )

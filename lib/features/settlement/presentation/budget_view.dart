@@ -69,7 +69,7 @@ class _BudgetViewState extends State<BudgetView> {
                       '1인 준비 금액 ${Fmt.krw(budget.perPersonBudgetKrw)} · ${budget.memberCount}명 기준',
                       style: const TextStyle(
                         fontSize: 13,
-                        color: AppColors.primary,
+                        color: AppColors.primaryText,
                         fontWeight: FontWeight.w700,
                       ),
                     )

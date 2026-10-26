@@ -3,13 +3,13 @@
     python tool/make_icon.py
     dart run flutter_launcher_icons
 
-코랄 바탕(#D0442B)에 흰 배낭. 안드로이드 적응형 아이콘용 전경(투명 바탕)도 함께 만든다.
+코랄 바탕(#EE5E52)에 흰 배낭. 안드로이드 적응형 아이콘용 전경(투명 바탕)도 함께 만든다.
 """
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-CORAL = (208, 68, 43, 255)
+CORAL = (238, 94, 82, 255)
 WHITE = (255, 255, 255, 255)
 SIZE = 1024
 OUT = Path(__file__).resolve().parent.parent / 'assets' / 'icon'

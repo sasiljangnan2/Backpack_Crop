@@ -52,7 +52,7 @@ class InviteCodeCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 30,
               letterSpacing: 4,
-              color: AppColors.primary,
+              color: AppColors.primaryText,
               fontWeight: FontWeight.w800,
             ),
           ),

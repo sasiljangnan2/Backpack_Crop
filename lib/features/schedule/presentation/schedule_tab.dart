@@ -249,7 +249,7 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
                   label: Text(
                     'DAY ${index + 1} · ${Fmt.monthDay(date)}${count > 0 ? ' ($count)' : ''}',
                     style: TextStyle(
-                      color: selected ? AppColors.primary : AppColors.ink,
+                      color: selected ? AppColors.primaryText : AppColors.ink,
                       fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                     ),
                   ),
@@ -309,7 +309,7 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
                           child: Text(
                             'DAY ${trip.dayNumberOf(day)} · ${Fmt.longDate(day)}',
                             style: const TextStyle(
-                              color: AppColors.primary,
+                              color: AppColors.primaryText,
                               fontWeight: FontWeight.w700,
                             ),
                           ),

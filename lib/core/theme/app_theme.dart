@@ -90,6 +90,7 @@ abstract final class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
+          foregroundColor: AppColors.primaryText,
           textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -101,7 +102,7 @@ abstract final class AppTheme {
               ? AppColors.primarySoft
               : Colors.white,
         ),
-        checkmarkColor: AppColors.primary,
+        checkmarkColor: AppColors.primaryText,
         iconTheme: const IconThemeData(color: AppColors.muted, size: 16),
         side: WidgetStateBorderSide.resolveWith(
           (states) => BorderSide(
@@ -115,7 +116,7 @@ abstract final class AppTheme {
           fontWeight: FontWeight.w600,
           color: WidgetStateColor.resolveWith(
             (states) => states.contains(WidgetState.selected)
-                ? AppColors.primary
+                ? AppColors.primaryText
                 : AppColors.ink,
           ),
         ),
@@ -156,7 +157,7 @@ abstract final class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
             color: states.contains(WidgetState.selected)
-                ? AppColors.primary
+                ? AppColors.primaryText
                 : AppColors.muted,
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w700
@@ -178,7 +179,7 @@ abstract final class AppTheme {
           backgroundColor: Colors.white,
           foregroundColor: AppColors.ink,
           selectedBackgroundColor: AppColors.primarySoft,
-          selectedForegroundColor: AppColors.primary,
+          selectedForegroundColor: AppColors.primaryText,
           side: const BorderSide(color: AppColors.border),
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),

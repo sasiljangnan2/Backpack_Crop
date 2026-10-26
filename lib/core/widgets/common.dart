@@ -41,7 +41,7 @@ class Pill extends StatelessWidget {
   const Pill(
     this.text, {
     super.key,
-    this.color = AppColors.primary,
+    this.color = AppColors.primaryText,
     this.background = AppColors.primarySoft,
     this.icon,
   });
@@ -94,7 +94,7 @@ class MemberAvatar extends StatelessWidget {
   final bool highlight;
 
   static const _palette = [
-    Color(0xFFD0442B),
+    AppColors.primaryText,
     Color(0xFF2D83F5),
     Color(0xFF0B7A55),
     Color(0xFF8B5CF6),
@@ -380,7 +380,9 @@ Future<bool> confirm(
         TextButton(
           onPressed: () => Navigator.pop(context, true),
           style: TextButton.styleFrom(
-            foregroundColor: destructive ? AppColors.error : AppColors.primary,
+            foregroundColor: destructive
+                ? AppColors.error
+                : AppColors.primaryText,
           ),
           child: Text(confirmLabel),
         ),

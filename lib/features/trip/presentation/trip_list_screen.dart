@@ -144,7 +144,7 @@ class _TripCard extends StatelessWidget {
     final (label, color, background) = switch (trip.status) {
       TripStatus.live => (
         '${trip.dayNo}일차',
-        AppColors.primary,
+        AppColors.primaryText,
         AppColors.primarySoft,
       ),
       TripStatus.upcoming => (

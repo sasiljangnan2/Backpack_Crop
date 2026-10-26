@@ -627,7 +627,7 @@ class _BeforeAfterCard extends StatelessWidget {
             children: [
               Pill(
                 upcoming ? Fmt.dDay(trip.dDay) : '다녀왔어요',
-                color: upcoming ? AppColors.primary : AppColors.muted,
+                color: upcoming ? AppColors.primaryText : AppColors.muted,
                 background: upcoming
                     ? AppColors.primarySoft
                     : AppColors.background,
