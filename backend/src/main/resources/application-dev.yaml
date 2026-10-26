@@ -11,6 +11,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # docker compose의 Redis는 비밀번호가 없다. 비밀번호를 건 Redis(WSL 등)를 쓸 때만 넣는다
+      password: ${REDIS_PASSWORD:}
   jpa:
     properties:
       hibernate:

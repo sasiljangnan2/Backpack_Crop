@@ -232,6 +232,8 @@ gradle-app.setting
 
 ### dotenv ###
 .env
+# scripts/run-local-windows.ps1이 만드는 로컬 Redis 비밀번호
+.redis_password
 
 ### Claude Code 로컬 상태 ###
 .claude/
