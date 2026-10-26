@@ -272,6 +272,11 @@ class ExpenseSettlementApiTest {
 			.andExpect(jsonPath("$.summary.count").value(3))
 			.andExpect(jsonPath("$.summary.totalKrw").value(87_348))
 			.andExpect(jsonPath("$.summary.currencyCode").value("JPY"))
+			// 분류 비율 막대: 금액이 큰 분류부터 (식비 45,348 · 교통 30,000 + 12,000)
+			.andExpect(jsonPath("$.summary.byCategory[0].category").value("FOOD"))
+			.andExpect(jsonPath("$.summary.byCategory[0].amountKrw").value(45_348))
+			.andExpect(jsonPath("$.summary.byCategory[1].amountKrw").value(42_000))
+			.andExpect(jsonPath("$.content[0].creator.memberId").value(id(2)))
 			.andReturn().getResponse().getContentAsString();
 		String cursor = com.jayway.jsonpath.JsonPath.read(firstPage, "$.nextCursor");
 
@@ -308,6 +313,8 @@ class ExpenseSettlementApiTest {
 			.andExpect(jsonPath("$.members[3].balanceKrw").value(-15_069))
 			.andExpect(jsonPath("$.members[4].balanceKrw").value(-9_069))
 			.andExpect(jsonPath("$.transferTotalKrw").value(37_207))
+			// 바로 갚으면: 0번 지출 1·2→0, 1번 지출 3→1, 2번 지출 0·1·3·4→2 = 7건
+			.andExpect(jsonPath("$.directTransferCount").value(7))
 			.andExpect(jsonPath("$.transfers.length()").value(Matchers.lessThanOrEqualTo(4)));
 
 		perform(get("/api/trips/" + trip.getId() + "/settlement/me"), 1, null)

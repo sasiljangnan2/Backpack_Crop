@@ -37,6 +37,20 @@ abstract final class AppColors {
   // DAY colors identify itinerary days and are distinct from action colors.
   static const dayTwo = Color(0xFF2D83F5);
 
+  /// 일차별 색 (스토리보드 BC-004 ①). DAY 탭 점 · 번호 핀이 같은 색을 쓴다
+  static const _days = [
+    Color(0xFFF2711C),
+    dayTwo,
+    Color(0xFF16A34A),
+    Color(0xFF8B5CF6),
+    Color(0xFFDB2777),
+    Color(0xFF0891B2),
+    Color(0xFFCA8A04),
+  ];
+
+  /// [dayNo]는 1부터
+  static Color day(int dayNo) => _days[(dayNo - 1) % _days.length];
+
   static ColorScheme get scheme => ColorScheme.fromSeed(
     seedColor: primary,
     primary: primary,

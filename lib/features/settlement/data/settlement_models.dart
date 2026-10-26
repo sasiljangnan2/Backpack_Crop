@@ -66,6 +66,7 @@ class Settlement {
     required this.totalKrw,
     required this.expenseCount,
     required this.transferTotalKrw,
+    required this.directTransferCount,
     required this.members,
     required this.transfers,
   });
@@ -74,6 +75,7 @@ class Settlement {
     totalKrw: integer(json['totalKrw']),
     expenseCount: integer(json['expenseCount']),
     transferTotalKrw: integer(json['transferTotalKrw']),
+    directTransferCount: integerOrNull(json['directTransferCount']) ?? 0,
     members: list(json['members'], SettlementMember.fromJson),
     transfers: list(json['transfers'], Transfer.fromJson),
   );
@@ -81,6 +83,9 @@ class Settlement {
   final int totalKrw;
   final int expenseCount;
   final int transferTotalKrw;
+
+  /// 지출마다 결제자에게 바로 보낸다면 필요한 송금 건수 (최소화 전)
+  final int directTransferCount;
   final List<SettlementMember> members;
   final List<Transfer> transfers;
 }

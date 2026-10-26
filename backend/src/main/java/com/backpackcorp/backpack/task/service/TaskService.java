@@ -56,6 +56,8 @@ public class TaskService {
 			.assignee(assignee)
 			.scope(request.scope())
 			.title(request.title().trim())
+			.dueDate(request.dueDate())
+			.status(request.status())
 			.build());
 		notifyAssigned(me, task);
 		return TaskResponse.of(task, me.getId());
@@ -84,7 +86,14 @@ public class TaskService {
 				notifyAssigned(me, task);
 			}
 		}
-		if (request.isDone() != null) {
+		if (Boolean.TRUE.equals(request.clearDueDate())) {
+			task.changeDueDate(null);
+		} else if (request.dueDate() != null) {
+			task.changeDueDate(request.dueDate());
+		}
+		if (request.status() != null) {
+			task.changeStatus(request.status());
+		} else if (request.isDone() != null) {
 			task.changeDone(request.isDone());
 		}
 		taskRepository.flush();

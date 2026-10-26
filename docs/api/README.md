@@ -429,7 +429,7 @@
 |---|---|
 | scope | `PRIVATE` / `TEAM`. 생략하면 내가 볼 수 있는 업무 전부 |
 
-`200 OK` — 안 한 일 먼저, 그 안에서 만든 순서
+`200 OK` — 안 한 일 먼저, 그 안에서 마감이 빠른 순 (마감일 없는 업무는 뒤), 같으면 만든 순서
 
 ```json
 [
@@ -437,6 +437,8 @@
     "id": "0192...",
     "scope": "TEAM",
     "title": "숙소 예약",
+    "dueDate": "2026-09-30",
+    "status": "IN_PROGRESS",
     "isDone": false,
     "creator": { "memberId": "0192...", "name": "홍길동" },
     "assignee": { "memberId": "0192...", "name": "김철수" },
@@ -447,12 +449,14 @@
 ```
 
 - `assignee`: 담당자가 없으면 `null`
+- `dueDate`: 마감일. 없으면 `null` (V3 마이그레이션)
+- `status`: `TODO`(할 일) · `IN_PROGRESS`(진행 중) · `DONE`(완료). `isDone`은 `status == DONE`과 같다
 - `isMine`: 내가 만들었거나 내가 맡은 업무
 
 ### POST `/api/trips/{tripId}/tasks`
 
 ```json
-{ "scope": "TEAM", "title": "숙소 예약", "assigneeMemberId": "0192..." }
+{ "scope": "TEAM", "title": "숙소 예약", "assigneeMemberId": "0192...", "dueDate": "2026-09-30", "status": "TODO" }
 ```
 
 | 필드 | 규칙 |
@@ -460,16 +464,19 @@
 | scope | 필수 |
 | title | 필수, 최대 100자 |
 | assigneeMemberId | 선택. 이 여행의 현재 멤버. `PRIVATE`이면 무시 |
+| dueDate | 선택. 앱은 함께 할 업무에서 담당자와 함께 필수로 받는다 (스토리보드 BP-PR-002) |
+| status | 선택, 기본 `TODO` |
 
 `201 Created` — 목록 항목 형식
 
 ### PATCH `/api/trips/{tripId}/tasks/{taskId}`
 
 ```json
-{ "title": "숙소 예약 (2박)", "assigneeMemberId": "0192...", "clearAssignee": false, "isDone": true }
+{ "title": "숙소 예약 (2박)", "assigneeMemberId": "0192...", "dueDate": "2026-10-01", "status": "IN_PROGRESS" }
 ```
 
-보낸 필드만 바뀐다. 담당자를 비우려면 `clearAssignee: true`. 체크(`isDone`)는 볼 수 있는 사람 누구나 할 수 있다.
+보낸 필드만 바뀐다. 담당자 · 마감일을 비우려면 `clearAssignee: true` · `clearDueDate: true`.
+진행 상태(`status`)와 체크(`isDone`)는 볼 수 있는 사람 누구나 바꿀 수 있다. 둘 다 보내면 `status`가 이긴다. `isDone: false`는 할 일(`TODO`)로 되돌린다.
 
 `200 OK` — 목록 항목 형식
 
@@ -655,7 +662,7 @@
 |---|---|
 | title | 필수, 최대 100자 |
 | slotDate | 필수, 여행 기간 안 (`400 SCHEDULE_OUT_OF_TRIP`) |
-| slotStart / slotEnd | 필수, 여행지 현지 시각, `slotEnd > slotStart` (`400 INVALID_TIME_RANGE`) |
+| slotStart / slotEnd | 필수, 여행지 현지 시각, `slotEnd > slotStart` (`400 INVALID_TIME_RANGE`). 이미 있는 일정과 겹치면 `409 SCHEDULE_OVERLAP` (스토리보드 BP-VT-002 ⑧) |
 | deadlineAt | 선택, 지금 이후. 지나면 투표만 막히고(`409 POLL_CLOSED`) 마감은 사람이 한다 |
 | options | 필수, 2~6개, 같은 이름 중복 불가. 보낸 순서대로 `sortOrder` 1~6 |
 | options[].label | 필수, 최대 100자 |
@@ -868,6 +875,7 @@
       "amountLocal": 4850.00,
       "amountKrw": 45348,
       "payer": { "memberId": "0192...", "name": "박멤버" },
+      "creator": { "memberId": "0192...", "name": "김방장" },
       "isPaidByMe": false,
       "myShareKrw": 9069,
       "createdAt": "2026-10-03T05:50:00Z"
@@ -879,13 +887,19 @@
     "count": 12,
     "totalKrw": 813899,
     "currencyCode": "JPY",
-    "todayRate": { "currencyCode": "JPY", "rateToKrw": 9.350000, "unit": 100, "unitRateToKrw": 935.00, "...": "환율 조회와 같은 형식" }
+    "todayRate": { "currencyCode": "JPY", "rateToKrw": 9.350000, "unit": 100, "unitRateToKrw": 935.00, "...": "환율 조회와 같은 형식" },
+    "byCategory": [
+      { "category": "FOOD", "amountKrw": 412000 },
+      { "category": "LODGING", "amountKrw": 300000 }
+    ]
   }
 }
 ```
 
+- `creator`가 `payer`와 다르면 다른 사람이 대신 입력한 지출 (목록의 "대리 입력" 배지)
 - `summary`는 페이지와 상관없이 필터에 맞는 **전체** 지출의 건수·합계 (화면 상단 "공동 지출 · N건")
 - `todayRate`는 여행 통화의 오늘 환율. 여행 통화가 KRW이거나 환율이 없으면 `null`
+- `byCategory`는 필터와 상관없이 여행 전체 지출의 분류별 원화 합계, 금액이 큰 순 (분류 비율 막대)
 
 ### POST `/api/trips/{tripId}/expenses` ✅ 구현 — 등록
 
@@ -1026,6 +1040,7 @@
   "totalKrw": 813899,
   "expenseCount": 12,
   "transferTotalKrw": 285000,
+  "directTransferCount": 14,
   "members": [
     {
       "memberId": "0192...",
@@ -1049,6 +1064,7 @@
 - `members`: 현재 멤버 전원(참여 순) + 지출 기록이 남은 나간 멤버(`hasLeft: true`)
 - `transfers`: 받을 사람과 보낼 사람을 금액 큰 순으로 짝짓는다. 금액이 딱 맞는 쌍은 먼저 짝지어 건수를 줄인다. 최대 (인원 − 1)건
 - `transferTotalKrw`는 양수 잔액의 합과 항상 같다 (서버가 검증)
+- `directTransferCount`: 지출마다 각자 결제자에게 바로 보낸다면 필요한 송금 건수 (보내는 사람 → 받는 사람 쌍). 화면의 "송금 14건 → 4건으로 줄였어요"
 
 ### GET `/api/trips/{tripId}/settlement/me` ✅ 구현 — 내 정산 · 계산 근거
 

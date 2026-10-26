@@ -66,7 +66,10 @@ class _BudgetViewState extends State<BudgetView> {
                   const SizedBox(height: 4),
                   if (hasBudget)
                     Text(
-                      '1인 준비 금액 ${Fmt.krw(budget.perPersonBudgetKrw)} · ${budget.memberCount}명 기준',
+                      // 현지 통화로 얼마를 환전해 가면 되는지 함께 (스토리보드 BP-BG-001 ④)
+                      '1인 준비 금액 ${Fmt.krw(budget.perPersonBudgetKrw)}'
+                      '${budget.todayRate == null ? '' : ' (≈ ${Fmt.money((budget.perPersonBudgetKrw / budget.todayRate!.rateToKrw).roundToDouble(), budget.currencyCode)})'}'
+                      ' · ${budget.memberCount}명 기준',
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.primaryText,
@@ -142,7 +145,7 @@ class _BudgetViewState extends State<BudgetView> {
                                 Icon(
                                   category.category.icon,
                                   size: 18,
-                                  color: AppColors.primary,
+                                  color: category.category.color,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -183,7 +186,7 @@ class _BudgetViewState extends State<BudgetView> {
                                   backgroundColor: AppColors.background,
                                   color: category.spentKrw > category.budgetKrw
                                       ? AppColors.error
-                                      : AppColors.primary,
+                                      : category.category.color,
                                 ),
                               ),
                             ],
@@ -227,7 +230,7 @@ class _BudgetViewState extends State<BudgetView> {
                         onTap: () => _edit(item: item),
                         leading: Icon(
                           item.category.icon,
-                          color: AppColors.primary,
+                          color: item.category.color,
                         ),
                         title: Text(
                           item.name,

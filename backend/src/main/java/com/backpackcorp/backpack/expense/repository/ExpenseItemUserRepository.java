@@ -42,6 +42,16 @@ public interface ExpenseItemUserRepository extends JpaRepository<ExpenseItemUser
 		""")
 	List<MemberAmountDto> sumShareByMember(@Param("tripId") UUID tripId);
 
+	// 정산 전 송금: 지출마다 각자 결제자에게 바로 보낸다면 생기는 (보내는 사람, 받는 사람) 쌍
+	@Query("""
+		select distinct u.member.id, u.item.expense.payer.id
+		from ExpenseItemUser u
+		where u.item.expense.trip.id = :tripId
+		  and u.shareKrw > 0
+		  and u.member.id <> u.item.expense.payer.id
+		""")
+	List<Object[]> findDebtPairs(@Param("tripId") UUID tripId);
+
 	// 지출별 내 부담액
 	@Query("""
 		select new com.backpackcorp.backpack.expense.dto.ExpenseAmountDto(u.item.expense.id, sum(u.shareKrw))

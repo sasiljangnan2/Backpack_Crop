@@ -259,6 +259,11 @@ public class ScheduleService {
 		}
 	}
 
+	// 투표를 열 때: 반영할 시간이 이미 다른 일정과 겹치면 409 SCHEDULE_OVERLAP
+	public void requireFreeSlot(UUID tripId, LocalDate day, LocalTime start, LocalTime end) {
+		checkOverlap(tripId, day, start, end, null);
+	}
+
 	// 겹친 일정 중 가장 이른 것을 details에 담는다. overlapCount는 겹친 일정 수
 	private void checkOverlap(UUID tripId, LocalDate day, LocalTime start, LocalTime end, UUID excludeId) {
 		List<Schedule> overlapping = scheduleRepository.findByTripIdAndDayOrderByStartTime(tripId, day).stream()

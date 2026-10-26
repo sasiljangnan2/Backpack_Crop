@@ -83,12 +83,17 @@ class PollApiTest extends ApiTestSupport {
 	}
 
 	@Test
-	void 슬롯이_다른_일정과_겹치면_마감할_수_없다() throws Exception {
+	void 슬롯이_다른_일정과_겹치면_만들_수_없고_그사이_생긴_일정과_겹치면_마감할_수_없다() throws Exception {
+		ResultActions created = createPoll(1, null);
 		perform(post(tripUrl() + "/schedules"), 0, """
 			{"day":"%s","startTime":"18:00","endTime":"19:00","title":"야경"}
 			""".formatted(DAY.plusDays(1))).andExpect(status().isCreated());
-		ResultActions created = createPoll(1, null);
 
+		// 이미 일정이 있는 시간에는 투표를 열 수 없다 (스토리보드 BP-VT-002 ⑧)
+		createPoll(1, null)
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("SCHEDULE_OVERLAP"));
+		// 투표를 연 뒤에 생긴 일정과 겹치면 마감하며 일정에 넣을 수 없다
 		perform(post(tripUrl() + "/polls/" + read(created, "$.id") + "/close"), 0,
 			"{\"selectedOptionId\":\"%s\"}".formatted(read(created, "$.options[0].id")))
 			.andExpect(status().isConflict())

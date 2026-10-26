@@ -46,6 +46,10 @@ abstract final class Fmt {
   static String shortDate(DateTime d) =>
       '${d.month}.${d.day.toString().padLeft(2, '0')} ${_weekdays[d.weekday - 1]}';
 
+  /// 9.28(월) — 스토리보드의 같은 해 날짜 표기
+  static String monthDayWeek(DateTime d) =>
+      '${d.month}.${d.day.toString().padLeft(2, '0')}(${_weekdays[d.weekday - 1]})';
+
   /// 10.03
   static String monthDay(DateTime d) =>
       '${d.month}.${d.day.toString().padLeft(2, '0')}';

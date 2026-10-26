@@ -122,6 +122,20 @@ abstract final class AppTheme {
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
+      // 밑줄 탭 = 목록 필터 (스토리보드 BC-002). 선택한 탭은 검정 글씨 + 검정 밑줄
+      tabBarTheme: const TabBarThemeData(
+        labelColor: AppColors.ink,
+        unselectedLabelColor: AppColors.muted,
+        indicatorColor: AppColors.ink,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: AppColors.border,
+        labelStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+        tabAlignment: TabAlignment.start,
+      ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,

@@ -12,7 +12,7 @@ import com.backpackcorp.backpack.task.domain.Task;
 
 public interface TaskRepository extends JpaRepository<Task, UUID> {
 
-	// 함께 할 업무 전체 + 내가 만든 개인 업무. 안 한 일 먼저, 그다음 만든 순서
+	// 함께 할 업무 전체 + 내가 만든 개인 업무. 안 한 일 먼저, 그다음 마감이 빠른 순(마감일 없는 건 뒤), 만든 순서
 	@Query("""
 		select t from Task t
 		join fetch t.creator c
@@ -21,7 +21,7 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 		left join fetch a.user
 		where t.trip.id = :tripId
 		  and (t.scope = com.backpackcorp.backpack.task.domain.TaskScope.TEAM or t.creator.id = :memberId)
-		order by t.done, t.id
+		order by t.done, case when t.dueDate is null then 1 else 0 end, t.dueDate, t.id
 		""")
 	List<Task> findVisible(@Param("tripId") UUID tripId, @Param("memberId") UUID memberId);
 

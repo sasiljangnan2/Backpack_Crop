@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 프로필 빌드(실기기 성능 확인용, 스토어 배포 아님): 디버그처럼 PC의 로컬 서버에 http로 붙을 수 있게 한다 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

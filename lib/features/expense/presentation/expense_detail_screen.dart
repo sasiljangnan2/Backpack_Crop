@@ -102,7 +102,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                         children: [
                           Icon(
                             expense.category.icon,
-                            color: AppColors.primary,
+                            color: expense.category.color,
                             size: 18,
                           ),
                           const SizedBox(width: 6),
@@ -151,7 +151,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                       const SizedBox(height: 10),
                       Text(
                         '${expense.payer.name}님 결제'
-                        '${expense.creator.memberId == expense.payer.memberId ? '' : ' · ${expense.creator.name}님이 입력'}',
+                        '${expense.creator.memberId == expense.payer.memberId ? '' : ' · ${expense.creator.name}님이 대신 입력'}',
                         style: const TextStyle(fontSize: 13),
                       ),
                     ],
@@ -235,13 +235,34 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                       ),
                     ],
                   ),
-                ] else
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
+                ] else ...[
+                  // 수정 잠금 (스토리보드 BP-EX-005 ②③): 누르면 이유를 알려 준다
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        showSnack(context, '결제자 · 입력한 사람 · 방장만 수정할 수 있어요.'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.muted,
+                    ),
+                    icon: const Icon(Icons.lock_outline, size: 18),
+                    label: const Text('수정 잠김'),
+                  ),
+                ],
+                if (expense.updatedAt != null &&
+                    expense.createdAt != null &&
+                    expense.updatedAt!
+                            .difference(expense.createdAt!)
+                            .inSeconds >
+                        1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
                     child: Text(
-                      '결제자 · 입력한 사람 · 방장만 수정할 수 있어요',
+                      '마지막 수정 ${Fmt.ago(expense.updatedAt!)}',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12, color: AppColors.muted),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.muted,
+                      ),
                     ),
                   ),
               ],

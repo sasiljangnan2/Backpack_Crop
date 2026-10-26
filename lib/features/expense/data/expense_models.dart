@@ -3,18 +3,20 @@ import 'package:flutter/material.dart';
 import '../../../core/network/json.dart';
 import '../../trip/data/trip_models.dart';
 
+/// 지출 분류. 아이콘 · 지출 행 · 비율 막대 · 예산 막대에 같은 색을 쓴다 (스토리보드 BC-004 ⑤)
 enum ExpenseCategory {
-  food('식비', Icons.restaurant_outlined),
-  lodging('숙소', Icons.hotel_outlined),
-  transport('교통', Icons.directions_subway_outlined),
-  activity('관광·체험', Icons.local_activity_outlined),
-  shopping('쇼핑', Icons.shopping_bag_outlined),
-  etc('기타', Icons.more_horiz);
+  food('식비', Icons.restaurant_outlined, Color(0xFFE8890C)),
+  lodging('숙소', Icons.hotel_outlined, Color(0xFF7C4DDB)),
+  transport('교통', Icons.directions_subway_outlined, Color(0xFF2D83F5)),
+  activity('관광·체험', Icons.local_activity_outlined, Color(0xFFDB2777)),
+  shopping('쇼핑', Icons.shopping_bag_outlined, Color(0xFF0891B2)),
+  etc('기타', Icons.more_horiz, Color(0xFF64748B));
 
-  const ExpenseCategory(this.label, this.icon);
+  const ExpenseCategory(this.label, this.icon, this.color);
 
   final String label;
   final IconData icon;
+  final Color color;
 }
 
 /// 환율 방식: API(그날 환율) · PREPAID(내가 환전해 간 환율) · MANUAL(직접 입력) · KRW(원화)
@@ -66,6 +68,7 @@ class ExpenseListItem {
     required this.amountLocal,
     required this.amountKrw,
     required this.payer,
+    required this.creator,
     required this.isPaidByMe,
     required this.myShareKrw,
   });
@@ -83,6 +86,7 @@ class ExpenseListItem {
     amountLocal: decimalOrNull(json['amountLocal']),
     amountKrw: integer(json['amountKrw']),
     payer: MemberRef.fromJson(json['payer'] as Json),
+    creator: MemberRef.fromJsonOrNull(json['creator']),
     isPaidByMe: json['isPaidByMe'] as bool? ?? false,
     myShareKrw: integer(json['myShareKrw']),
   );
@@ -95,8 +99,13 @@ class ExpenseListItem {
   final double? amountLocal;
   final int amountKrw;
   final MemberRef payer;
+
+  /// 입력한 사람. 결제자와 다르면 대리 입력
+  final MemberRef? creator;
   final bool isPaidByMe;
   final int myShareKrw;
+
+  bool get isProxy => creator != null && creator!.memberId != payer.memberId;
 }
 
 class ExpensePage {
@@ -107,6 +116,7 @@ class ExpensePage {
     required this.count,
     required this.totalKrw,
     required this.todayRate,
+    required this.byCategory,
   });
 
   factory ExpensePage.fromJson(Json json) {
@@ -118,6 +128,17 @@ class ExpensePage {
       count: integer(summary['count']),
       totalKrw: integer(summary['totalKrw']),
       todayRate: ExchangeRate.fromJsonOrNull(summary['todayRate']),
+      byCategory: [
+        for (final item in (summary['byCategory'] as List?) ?? const [])
+          (
+            enumOf(
+              ExpenseCategory.values,
+              (item as Json)['category'],
+              ExpenseCategory.etc,
+            ),
+            integer(item['amountKrw']),
+          ),
+      ],
     );
   }
 
@@ -127,6 +148,9 @@ class ExpensePage {
   final int count;
   final int totalKrw;
   final ExchangeRate? todayRate;
+
+  /// 분류별 원화 합계, 금액이 큰 순 (비율 막대)
+  final List<(ExpenseCategory, int)> byCategory;
 }
 
 class ExpenseShare {
@@ -217,6 +241,8 @@ class ExpenseDetail {
     required this.items,
     required this.memberShares,
     required this.version,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory ExpenseDetail.fromJson(Json json) => ExpenseDetail(
@@ -244,6 +270,8 @@ class ExpenseDetail {
     items: list(json['items'], ExpenseItem.fromJson),
     memberShares: list(json['memberShares'], MemberShare.fromJson),
     version: integerOrNull(json['version']),
+    createdAt: instantOrNull(json['createdAt']),
+    updatedAt: instantOrNull(json['updatedAt']),
   );
 
   final String? id;
@@ -261,6 +289,10 @@ class ExpenseDetail {
   final MemberRef creator;
   final List<ExpenseItem> items;
   final List<MemberShare> memberShares;
+  final DateTime? createdAt;
+
+  /// 마지막으로 고친 시각 (만든 시각과 다르면 화면에 보인다)
+  final DateTime? updatedAt;
   final int? version;
 
   int get remainderKrw => items.fold(0, (sum, item) => sum + item.remainderKrw);

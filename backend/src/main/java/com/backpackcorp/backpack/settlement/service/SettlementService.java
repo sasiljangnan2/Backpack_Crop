@@ -60,8 +60,9 @@ public class SettlementService {
 				MemberRef.from(calculation.members().get(transfer.fromMemberId())),
 				MemberRef.from(calculation.members().get(transfer.toMemberId())), transfer.amountKrw()))
 			.toList();
+		long directTransferCount = expenseItemUserRepository.findDebtPairs(tripId).size();
 		return new SettlementResponse(calculation.result().totalPaidKrw(), calculation.expenseCount(),
-			calculation.result().transferTotalKrw(), members, transfers, Instant.now(clock));
+			calculation.result().transferTotalKrw(), directTransferCount, members, transfers, Instant.now(clock));
 	}
 
 	public MySettlementResponse getMySettlement(UUID tripId, UUID userId) {

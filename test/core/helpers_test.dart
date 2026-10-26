@@ -2,6 +2,7 @@ import 'package:backpack/core/network/json.dart';
 import 'package:backpack/core/utils/format.dart';
 import 'package:backpack/features/expense/data/expense_models.dart';
 import 'package:backpack/features/notification/data/notification_api.dart';
+import 'package:backpack/features/task/data/task_api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -115,6 +116,46 @@ void main() {
         'memberId': 'm1',
         'shareKrw': null,
       });
+    });
+  });
+
+  group('준비 업무', () {
+    Map<String, dynamic> json({
+      String? status,
+      bool done = false,
+      String? due,
+    }) => {
+      'id': 't1',
+      'scope': 'TEAM',
+      'title': '엔화 환전',
+      'status': status,
+      'isDone': done,
+      'dueDate': due,
+      'creator': {'memberId': 'm1', 'name': '재윤'},
+      'assignee': {'memberId': 'm2', 'name': '준'},
+      'isMine': false,
+    };
+
+    test('진행 상태를 읽고, 예전 서버(isDone만)도 완료 / 할 일로 읽는다', () {
+      expect(
+        TripTask.fromJson(json(status: 'IN_PROGRESS')).status,
+        TaskStatus.inProgress,
+      );
+      expect(TripTask.fromJson(json(done: true)).status, TaskStatus.done);
+      expect(TripTask.fromJson(json()).status, TaskStatus.todo);
+      expect(enumName(TaskStatus.inProgress), 'IN_PROGRESS');
+    });
+
+    test('마감까지 남은 날은 날짜만 보고 센다', () {
+      final task = TripTask.fromJson(json(due: '2026-09-30'));
+      expect(task.daysLeft(DateTime(2026, 9, 25, 23, 59)), 5);
+      expect(task.daysLeft(DateTime(2026, 10, 1)), -1);
+      expect(TripTask.fromJson(json()).daysLeft(DateTime(2026, 9, 25)), isNull);
+      expect(task.isAssignedTo('m2'), isTrue);
+    });
+
+    test('마감일 표기는 9.30(수)', () {
+      expect(Fmt.monthDayWeek(DateTime(2026, 9, 30)), '9.30(수)');
     });
   });
 }

@@ -251,6 +251,10 @@ class _ExpenseListViewState extends State<_ExpenseListView> {
                       ),
                     ),
                   ],
+                  if (first.byCategory.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    _CategoryRatio(byCategory: first.byCategory),
+                  ],
                 ],
               ),
             ),
@@ -317,16 +321,31 @@ class _ExpenseRow extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: AppColors.primarySoft,
+          color: item.category.color.withValues(alpha: .12),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(item.category.icon, color: AppColors.primary, size: 20),
+        child: Icon(item.category.icon, color: item.category.color, size: 20),
       ),
-      title: Text(
-        item.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              item.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+          ),
+          // 결제자와 입력한 사람이 다르면 대리 입력 (스토리보드 BP-EX-001 ④)
+          if (item.isProxy) ...[
+            const SizedBox(width: 6),
+            const Pill(
+              '대리 입력',
+              color: AppColors.muted,
+              background: AppColors.background,
+            ),
+          ],
+        ],
       ),
       subtitle: Text(
         '${item.isPaidByMe ? '내가' : '${item.payer.name}님이'} 결제'
@@ -348,6 +367,71 @@ class _ExpenseRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 분류별 비율 막대 (스토리보드 BP-EX-001 ②)
+class _CategoryRatio extends StatelessWidget {
+  const _CategoryRatio({required this.byCategory});
+
+  final List<(ExpenseCategory, int)> byCategory;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = byCategory.fold<int>(0, (sum, e) => sum + e.$2);
+    if (total <= 0) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(5),
+          child: SizedBox(
+            height: 10,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (category, amount) in byCategory)
+                  Expanded(
+                    flex: (amount * 1000 / total).round().clamp(1, 1000),
+                    child: ColoredBox(color: category.color),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (final (category, amount) in byCategory)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: category.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${category.label} ${(amount * 100 / total).round()}%',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

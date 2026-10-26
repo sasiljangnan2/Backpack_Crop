@@ -239,20 +239,12 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final date = trip.dates[index];
-                final selected = sameDay(date, day);
-                final count =
-                    schedules?.where((s) => sameDay(s.day, date)).length ?? 0;
-                return ChoiceChip(
-                  selected: selected,
-                  showCheckmark: false,
-                  onSelected: (_) => setState(() => _day = date),
-                  label: Text(
-                    'DAY ${index + 1} · ${Fmt.monthDay(date)}${count > 0 ? ' ($count)' : ''}',
-                    style: TextStyle(
-                      color: selected ? AppColors.primaryText : AppColors.ink,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    ),
-                  ),
+                return _DayTab(
+                  dayNo: index + 1,
+                  date: date,
+                  selected: sameDay(date, day),
+                  isToday: sameDay(date, DateTime.now()),
+                  onTap: () => setState(() => _day = date),
                 );
               },
             ),
@@ -339,6 +331,7 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
                                   _ScheduleRow(
                                     schedule: ofDay[i],
                                     index: i + 1,
+                                    dayNo: trip.dayNumberOf(day),
                                     isLast: i == ofDay.length - 1,
                                     onTap: () => _openActions(ofDay[i]),
                                   ),
@@ -361,6 +354,7 @@ class _ScheduleRow extends StatelessWidget {
     required this.index,
     required this.isLast,
     required this.onTap,
+    this.dayNo = 1,
   });
 
   final Schedule schedule;
@@ -368,19 +362,33 @@ class _ScheduleRow extends StatelessWidget {
   final bool isLast;
   final VoidCallback onTap;
 
+  /// 번호 핀 색 (일차별 색)
+  final int dayNo;
+
   @override
   Widget build(BuildContext context) {
     final done = schedule.status == ScheduleStatus.done;
     final now = schedule.status == ScheduleStatus.inProgress;
+    // 번호 핀: 고정 = 검정 자물쇠, 완료 = 회색, 나머지 = 일차 색 (스토리보드 BC-003 ③)
     final markerColor = schedule.isLocked
         ? AppColors.ink
         : done
-        ? AppColors.success
-        : AppColors.dayTwo;
+        ? AppColors.disabled
+        : AppColors.day(dayNo);
+    // 왼쪽 선: 고정 = 검정, 진행 중 = 주요 색
+    final edge = schedule.isLocked
+        ? AppColors.ink
+        : now
+        ? AppColors.primary
+        : Colors.transparent;
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: edge, width: 4)),
+          color: now ? AppColors.primarySoft.withValues(alpha: .5) : null,
+        ),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -469,19 +477,21 @@ class _ScheduleRow extends StatelessWidget {
                           '예약 확정',
                           color: AppColors.success,
                           background: AppColors.successSoft,
+                          icon: Icons.check,
                         ),
                       if (schedule.reservationStatus ==
                           ReservationStatus.pending)
                         const Pill(
-                          '예약 확인 중',
+                          '예약 대기',
                           color: AppColors.warning,
                           background: AppColors.warningSoft,
                         ),
                       if (schedule.isLocked)
                         const Pill(
-                          '시간 고정',
-                          color: AppColors.ink,
-                          background: AppColors.background,
+                          '고정',
+                          color: Colors.white,
+                          background: AppColors.ink,
+                          icon: Icons.lock_outline,
                         ),
                     ],
                   ),
@@ -490,6 +500,76 @@ class _ScheduleRow extends StatelessWidget {
             ),
             const Icon(Icons.more_vert, size: 18, color: AppColors.muted),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// DAY 탭 (스토리보드 BC-004 ④): 선택한 날만 검정, 일차별 색 점, 여행 당일은 "오늘"
+class _DayTab extends StatelessWidget {
+  const _DayTab({
+    required this.dayNo,
+    required this.date,
+    required this.selected,
+    required this.isToday,
+    required this.onTap,
+  });
+
+  final int dayNo;
+  final DateTime date;
+  final bool selected;
+  final bool isToday;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? Colors.white : AppColors.ink;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? AppColors.ink : Colors.white,
+        shape: StadiumBorder(
+          side: BorderSide(color: selected ? AppColors.ink : AppColors.border),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: AppColors.day(dayNo),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  'DAY $dayNo',
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  isToday ? '오늘' : Fmt.shortDate(date),
+                  style: TextStyle(
+                    color: selected ? Colors.white70 : AppColors.muted,
+                    fontSize: 13,
+                    fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

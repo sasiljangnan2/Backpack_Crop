@@ -79,6 +79,8 @@ public class PollService {
 		if (request.deadlineAt() != null && !request.deadlineAt().isAfter(Instant.now(clock))) {
 			throw BaseException.of(ErrorCode.VALIDATION_ERROR, "deadlineAt", "마감 시간은 지금 이후로 정해 주세요.");
 		}
+		scheduleService.requireFreeSlot(trip.getId(), request.slotDate(),
+			request.slotStart().truncatedTo(ChronoUnit.MINUTES), request.slotEnd().truncatedTo(ChronoUnit.MINUTES));
 		long distinct = request.options().stream().map(o -> o.label().trim()).distinct().count();
 		if (distinct != request.options().size()) {
 			throw BaseException.of(ErrorCode.VALIDATION_ERROR, "options", "같은 후보가 두 번 들어 있어요.");

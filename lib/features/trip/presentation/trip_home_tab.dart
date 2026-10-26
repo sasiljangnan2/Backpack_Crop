@@ -6,7 +6,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/widgets/common.dart';
 import '../../notification/presentation/notification_bell.dart';
+import '../../expense/data/expense_models.dart';
+import '../../expense/presentation/expense_form_screen.dart';
 import '../../schedule/data/schedule_models.dart';
+import '../../schedule/presentation/poll_screens.dart';
 import '../../schedule/presentation/schedule_sheets.dart';
 import '../../settlement/data/settlement_models.dart';
 import '../../settlement/presentation/settlement_screen.dart';
@@ -15,6 +18,7 @@ import '../data/trip_models.dart';
 import 'invite_sheet.dart';
 import 'trip_settings_screen.dart';
 import 'trip_shell.dart';
+import 'trip_switch_sheet.dart';
 
 /// BP-HM-001 여행 메인. 여행 전에는 D-day와 준비 현황, 여행 중에는 오늘 요약을 보여 준다.
 class TripHomeTab extends StatefulWidget {
@@ -30,12 +34,18 @@ class _HomeData {
     required this.mine,
     required this.budget,
     required this.tasks,
+    required this.schedules,
+    required this.polls,
   });
 
   final TodaySummary? today;
   final MySettlement mine;
   final Budget budget;
   final List<TripTask> tasks;
+
+  /// 여행 전에만 불러온다 (일정 등록 현황 · 진행 중 투표 카드)
+  final List<Schedule> schedules;
+  final List<Poll> polls;
 }
 
 class _TripHomeTabState extends State<TripHomeTab> {
@@ -56,17 +66,26 @@ class _TripHomeTabState extends State<TripHomeTab> {
     final today = trip.status == TripStatus.live
         ? services.schedules.today(trip.id)
         : Future<TodaySummary?>.value(null);
+    final upcoming = trip.status == TripStatus.upcoming;
     final results = await Future.wait<Object?>([
       today,
       services.expenses.mySettlement(trip.id),
       services.expenses.budget(trip.id),
       services.tasks.tasks(trip.id),
+      upcoming
+          ? services.schedules.schedules(trip.id)
+          : Future<List<Schedule>>.value(const []),
+      upcoming
+          ? services.schedules.polls(trip.id)
+          : Future<List<Poll>>.value(const []),
     ]);
     return _HomeData(
       today: results[0] as TodaySummary?,
       mine: results[1]! as MySettlement,
       budget: results[2]! as Budget,
       tasks: results[3]! as List<TripTask>,
+      schedules: results[4]! as List<Schedule>,
+      polls: results[5]! as List<Poll>,
     );
   }
 
@@ -105,6 +124,15 @@ class _TripHomeTabState extends State<TripHomeTab> {
                     if (data == null) {
                       return const LoadingView();
                     }
+                    if (trip.status == TripStatus.upcoming) {
+                      return _BeforeTrip(
+                        trip: trip,
+                        data: data,
+                        onChanged: () => setState(() {
+                          _future = _load(trip);
+                        }),
+                      );
+                    }
                     return Column(
                       children: [
                         if (data.today != null)
@@ -116,6 +144,9 @@ class _TripHomeTabState extends State<TripHomeTab> {
                           trip: trip,
                           mine: data.mine,
                           budget: data.budget,
+                          onExpenseAdded: () => setState(() {
+                            _future = _load(trip);
+                          }),
                         ),
                       ],
                     );
@@ -136,14 +167,19 @@ class _Cover extends StatelessWidget {
   final TripDetail trip;
 
   String get _headline => switch (trip.status) {
-    TripStatus.upcoming => trip.dDay == 1 ? '내일 출발해요' : '출발까지 ${trip.dDay}일',
+    TripStatus.upcoming =>
+      trip.dDay == 1
+          ? '내일 출발해요'
+          : trip.dDay <= 14
+          ? '곧 떠나요!'
+          : '출발까지 ${trip.dDay}일',
     TripStatus.live => '여행 ${trip.dayNo}일차',
     TripStatus.done => '여행을 마쳤어요',
   };
 
   String get _sub => switch (trip.status) {
     TripStatus.upcoming =>
-      '${Fmt.dDay(trip.dDay)} · ${Fmt.shortDate(trip.startDate)} 출발',
+      '${Fmt.shortDate(trip.startDate)} – ${Fmt.shortDate(trip.endDate)} · ${trip.nights}박 ${trip.days}일',
     TripStatus.live =>
       'DAY ${trip.dayNo} · ${Fmt.shortDate(DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day + (trip.dayNo ?? 1) - 1))}',
     TripStatus.done => Fmt.range(trip.startDate, trip.endDate),
@@ -170,15 +206,32 @@ class _Cover extends StatelessWidget {
                       size: 28,
                     ),
                   ),
+                  // 여행 이름을 누르면 여행 전환 (BP-CM-001)
                   Expanded(
-                    child: Text(
-                      trip.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => showTripSwitcher(context, trip),
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              trip.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                shadows: AppColors.coverShadow,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Colors.white,
+                            semanticLabel: '여행 전환',
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -698,16 +751,400 @@ class _BeforeAfterCard extends StatelessWidget {
   }
 }
 
+/// 여행 전 (BP-HM-001 A): 출발 D-day · 준비 진행률 → 내가 할 일 → 일정 · 1인 준비 금액 → 진행 중 투표
+class _BeforeTrip extends StatelessWidget {
+  const _BeforeTrip({
+    required this.trip,
+    required this.data,
+    required this.onChanged,
+  });
+
+  final TripDetail trip;
+  final _HomeData data;
+  final VoidCallback onChanged;
+
+  Future<void> _complete(BuildContext context, TripTask task) async {
+    try {
+      await services.tasks.update(trip.id, task.id, status: TaskStatus.done);
+      onChanged();
+    } catch (e) {
+      if (context.mounted) {
+        showError(context, e);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = TripScope.of(context);
+    final team = data.tasks.where((t) => t.scope == TaskScope.team).toList();
+    final done = team.where((t) => t.isDone).length;
+    final myTodo = team
+        .where((t) => t.isAssignedTo(trip.myMemberId) && !t.isDone)
+        .toList();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final plannedDays = {
+      for (final s in data.schedules)
+        DateTime(s.day.year, s.day.month, s.day.day),
+    }.length;
+    final fixed = data.schedules.where((s) => s.isLocked).length;
+    final openPolls = data.polls.where((p) => p.isVotingOpen).toList();
+    final budget = data.budget;
+    final rate = budget.todayRate;
+    return Column(
+      children: [
+        AppCard(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '출발까지',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.muted,
+                          ),
+                        ),
+                        Text(
+                          Fmt.dDay(trip.dDay),
+                          style: const TextStyle(
+                            fontSize: 40,
+                            height: 1.15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${Fmt.monthDayWeek(trip.startDate)} 출발',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${trip.nights}박 ${trip.days}일 · ${trip.members.length}명',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '준비 진행률',
+                      style: TextStyle(fontSize: 13, color: AppColors.muted),
+                    ),
+                  ),
+                  Text(
+                    team.isEmpty ? '준비 업무 없음' : '$done / ${team.length} 완료',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: LinearProgressIndicator(
+                  value: team.isEmpty ? 0 : done / team.length,
+                  minHeight: 8,
+                  backgroundColor: AppColors.background,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        AppCard(
+          padding: const EdgeInsets.fromLTRB(20, 14, 8, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      myTodo.isEmpty ? '내가 할 일' : '내가 할 일 ${myTodo.length}건',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => scope.selectTab(TripShell.prep),
+                    child: const Text('준비 전체 ›'),
+                  ),
+                ],
+              ),
+              if (myTodo.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(0, 4, 12, 12),
+                  child: Text(
+                    '맡은 준비 업무를 모두 마쳤어요',
+                    style: TextStyle(fontSize: 13, color: AppColors.muted),
+                  ),
+                ),
+              for (final task in myTodo.take(3))
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: false,
+                        onChanged: (_) => _complete(context, task),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                task.title,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                [
+                                  task.status.label,
+                                  if (task.dueDate != null)
+                                    '${Fmt.monthDayWeek(task.dueDate!)} 마감',
+                                ].join(' · '),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.muted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (task.daysLeft(today) case final left?)
+                        Pill(
+                          left < 0 ? '마감 지남' : Fmt.dDay(left),
+                          color: left < 0 ? AppColors.error : AppColors.warning,
+                          background: left < 0
+                              ? const Color(0xFFFDEEF3)
+                              : AppColors.warningSoft,
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _MiniCard(
+                  icon: Icons.calendar_month_outlined,
+                  label: '일정',
+                  value: '$plannedDays / ${trip.days}일',
+                  sub: fixed > 0 ? '고정 일정 $fixed개' : '고정 일정 없음',
+                  onTap: () => scope.selectTab(TripShell.schedule),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MiniCard(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: '1인 준비 금액',
+                  value: budget.items.isEmpty
+                      ? '예산 없음'
+                      : Fmt.krw(budget.perPersonBudgetKrw),
+                  // 현지 통화로 얼마를 준비하면 되는지 (원 단위 반올림)
+                  sub: budget.items.isEmpty
+                      ? '예상 경비를 넣어 보세요'
+                      : rate == null
+                      ? '${budget.memberCount}명 기준'
+                      : '≈ ${Fmt.money((budget.perPersonBudgetKrw / rate.rateToKrw).roundToDouble(), budget.currencyCode)} · ${budget.memberCount}명 기준',
+                  onTap: () => scope.selectTab(TripShell.expense),
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (final poll in openPolls.take(1)) ...[
+          const SizedBox(height: 12),
+          AppCard(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PollDetailScreen(trip: trip, pollId: poll.id),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.how_to_vote_outlined,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '투표 진행 중 ${openPolls.length}건',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        [
+                          poll.title,
+                          if (poll.deadlineAt != null)
+                            '${Fmt.monthDayWeek(poll.deadlineAt!.toLocal())} 마감',
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (poll.myOptionId == null)
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            PollDetailScreen(trip: trip, pollId: poll.id),
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                    ),
+                    child: const Text('투표하기', style: TextStyle(fontSize: 14)),
+                  )
+                else
+                  const Pill('투표함', icon: Icons.check),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        _MoneyCard(
+          trip: trip,
+          mine: data.mine,
+          budget: data.budget,
+          onExpenseAdded: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniCard extends StatelessWidget {
+  const _MiniCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.sub,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final String sub;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: AppColors.muted),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 13, color: AppColors.muted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            sub,
+            style: const TextStyle(fontSize: 12, color: AppColors.muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MoneyCard extends StatelessWidget {
   const _MoneyCard({
     required this.trip,
     required this.mine,
     required this.budget,
+    required this.onExpenseAdded,
   });
 
   final TripDetail trip;
   final MySettlement mine;
   final Budget budget;
+  final VoidCallback onExpenseAdded;
+
+  Future<void> _addExpense(BuildContext context) async {
+    final created = await Navigator.of(context).push<ExpenseDetail>(
+      MaterialPageRoute(builder: (_) => ExpenseFormScreen(trip: trip)),
+    );
+    if (created != null) {
+      onExpenseAdded();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -727,11 +1164,32 @@ class _MoneyCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            ratio == null
-                ? '공동 지출 · ${mine.expenseCount}건'
-                : '공동 지출 · 예산 ${(ratio * 100).round()}%',
-            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  ratio == null
+                      ? '공동 지출 · ${mine.expenseCount}건'
+                      : '공동 지출 ${mine.expenseCount}건 · 예산 ${(ratio * 100).round()}%',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () => _addExpense(context),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  backgroundColor: AppColors.primarySoft,
+                  foregroundColor: AppColors.primaryText,
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('지출 등록'),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Wrap(

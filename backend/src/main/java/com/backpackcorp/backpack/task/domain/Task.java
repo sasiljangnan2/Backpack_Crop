@@ -1,5 +1,7 @@
 package com.backpackcorp.backpack.task.domain;
 
+import java.time.LocalDate;
+
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
@@ -50,16 +52,28 @@ public class Task extends BaseTimeEntity {
 	@Column(nullable = false, length = 100)
 	private String title;
 
+	// 마감일. 개인 준비물은 비워 둘 수 있다
+	@Column(name = "due_date")
+	private LocalDate dueDate;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 12)
+	private TaskStatus status = TaskStatus.TODO;
+
+	// status == DONE과 항상 같다 (V1 컬럼, 기존 조회 호환)
 	@Column(name = "is_done", nullable = false)
 	private boolean done;
 
 	@Builder
-	private Task(Trip trip, TripMember creator, TripMember assignee, TaskScope scope, String title) {
+	private Task(Trip trip, TripMember creator, TripMember assignee, TaskScope scope, String title,
+		LocalDate dueDate, TaskStatus status) {
 		this.trip = trip;
 		this.creator = creator;
 		this.assignee = assignee;
 		this.scope = scope;
 		this.title = title;
+		this.dueDate = dueDate;
+		changeStatus(status == null ? TaskStatus.TODO : status);
 	}
 
 	public void changeTitle(String title) {
@@ -71,7 +85,18 @@ public class Task extends BaseTimeEntity {
 		this.assignee = assignee;
 	}
 
+	// null이면 마감일을 비운다
+	public void changeDueDate(LocalDate dueDate) {
+		this.dueDate = dueDate;
+	}
+
+	public void changeStatus(TaskStatus status) {
+		this.status = status;
+		this.done = status == TaskStatus.DONE;
+	}
+
+	// 체크박스: 완료 ↔ 할 일 (진행 중이던 업무를 체크하면 완료, 다시 풀면 할 일)
 	public void changeDone(boolean done) {
-		this.done = done;
+		changeStatus(done ? TaskStatus.DONE : TaskStatus.TODO);
 	}
 }

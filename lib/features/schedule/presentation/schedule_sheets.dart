@@ -452,12 +452,47 @@ class _ActivitySheetState extends State<_ActivitySheet> {
       widget.schedule.activity?.actualEndTime ?? widget.schedule.endTime;
   bool _busy = false;
 
+  /// 여행지의 지금 시각. 그날 일정일 때만 서버에서 받아 빠른 선택에 쓴다
+  TimeOfDay? _now;
+
   int get _delay =>
       (minutesOf(_end) - minutesOf(widget.schedule.endTime)).clamp(0, 24 * 60);
+
+  bool get _endAfterNow => _now != null && minutesOf(_end) > minutesOf(_now!);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNow();
+  }
+
+  Future<void> _loadNow() async {
+    try {
+      final today = await services.schedules.today(widget.trip.id);
+      if (mounted && sameDay(today.date, widget.schedule.day)) {
+        setState(() => _now = today.localTime);
+      }
+    } catch (_) {
+      // 빠른 선택만 숨긴다
+    }
+  }
+
+  void _quickEnd(int minutesAgo) {
+    final now = _now!;
+    final minutes = (minutesOf(now) - minutesAgo).clamp(
+      minutesOf(_start),
+      minutesOf(now),
+    );
+    setState(() => _end = timeOfMinutes(minutes));
+  }
 
   Future<void> _save() async {
     if (minutesOf(_end) < minutesOf(_start)) {
       showSnack(context, '실제 종료는 실제 시작과 같거나 늦어야 해요.');
+      return;
+    }
+    if (_endAfterNow) {
+      showSnack(context, '실제 종료는 지금 이후로 기록할 수 없어요.');
       return;
     }
     setState(() => _busy = true);
@@ -562,7 +597,7 @@ class _ActivitySheetState extends State<_ActivitySheet> {
                   child: _TimeButton(
                     label: '실제 종료',
                     time: _end,
-                    error: minutesOf(_end) < minutesOf(_start),
+                    error: minutesOf(_end) < minutesOf(_start) || _endAfterNow,
                     onTap: () async {
                       final picked = await pickTime(context, _end, '실제 종료');
                       if (picked != null) {
@@ -573,6 +608,29 @@ class _ActivitySheetState extends State<_ActivitySheet> {
                 ),
               ],
             ),
+            if (_now != null) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  for (final (label, ago) in const [
+                    ('지금', 0),
+                    ('10분 전', 10),
+                    ('30분 전', 30),
+                  ]) ...[
+                    Expanded(
+                      child: ActionChip(
+                        label: SizedBox(
+                          width: double.infinity,
+                          child: Text(label, textAlign: TextAlign.center),
+                        ),
+                        onPressed: () => _quickEnd(ago),
+                      ),
+                    ),
+                    if (ago != 30) const SizedBox(width: 6),
+                  ],
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             Text(
               _delay > 0

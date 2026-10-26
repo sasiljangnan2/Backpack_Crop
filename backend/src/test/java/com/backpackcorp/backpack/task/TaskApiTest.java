@@ -84,6 +84,35 @@ class TaskApiTest extends ApiTestSupport {
 		perform(get(tripUrl() + "/tasks"), 1, null).andExpect(jsonPath("$.length()").value(0));
 	}
 
+	@Test
+	void 마감일과_진행_상태_마감_순_정렬() throws Exception {
+		perform(post(tripUrl() + "/tasks"), 0,
+			"{\"scope\":\"TEAM\",\"title\":\"보험 가입\",\"assigneeMemberId\":\"%s\",\"dueDate\":\"2026-09-30\"}"
+				.formatted(id(1)))
+			.andExpect(jsonPath("$.dueDate").value("2026-09-30"))
+			.andExpect(jsonPath("$.status").value("TODO"));
+		String passId = read(perform(post(tripUrl() + "/tasks"), 0,
+			"{\"scope\":\"TEAM\",\"title\":\"주유패스 구매\",\"dueDate\":\"2026-09-28\",\"status\":\"IN_PROGRESS\"}"),
+			"$.id");
+		create(0, "TEAM", "마감일 없음", null);
+
+		// 마감이 빠른 순, 마감일 없는 업무는 뒤
+		perform(get(tripUrl() + "/tasks"), 0, null)
+			.andExpect(jsonPath("$[0].title").value("주유패스 구매"))
+			.andExpect(jsonPath("$[0].status").value("IN_PROGRESS"))
+			.andExpect(jsonPath("$[0].isDone").value(false))
+			.andExpect(jsonPath("$[1].title").value("보험 가입"))
+			.andExpect(jsonPath("$[2].title").value("마감일 없음"));
+
+		// 완료로 바꾸면 isDone도 함께 바뀌고, 다시 체크를 풀면 할 일로 돌아간다
+		perform(patch(tripUrl() + "/tasks/" + passId), 0, "{\"status\":\"DONE\"}")
+			.andExpect(jsonPath("$.status").value("DONE"))
+			.andExpect(jsonPath("$.isDone").value(true));
+		perform(patch(tripUrl() + "/tasks/" + passId), 0, "{\"isDone\":false,\"clearDueDate\":true}")
+			.andExpect(jsonPath("$.status").value("TODO"))
+			.andExpect(jsonPath("$.dueDate").doesNotExist());
+	}
+
 	private org.springframework.test.web.servlet.ResultActions create(int member, String scope, String title,
 		String assignee) throws Exception {
 		String assigneeJson = assignee == null ? "null" : "\"" + assignee + "\"";

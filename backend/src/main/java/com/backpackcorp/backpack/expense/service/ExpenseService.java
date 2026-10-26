@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -96,8 +97,13 @@ public class ExpenseService {
 		ExchangeRateResponse todayRate = ExchangeRateService.KRW.equals(trip.getCurrencyCode())
 			? null
 			: exchangeRateService.findTodayRate(trip.getCurrencyCode()).orElse(null);
+		List<ExpenseListResponse.CategoryTotal> byCategory = expenseRepository.sumByCategory(tripId).stream()
+			.map(sum -> new ExpenseListResponse.CategoryTotal(sum.category(), sum.amount()))
+			.filter(total -> total.amountKrw() > 0)
+			.sorted(Comparator.comparingLong(ExpenseListResponse.CategoryTotal::amountKrw).reversed())
+			.toList();
 		ExpenseListResponse.Summary summary = new ExpenseListResponse.Summary(totals.countValue(),
-			totals.totalValue(), trip.getCurrencyCode(), todayRate);
+			totals.totalValue(), trip.getCurrencyCode(), todayRate, byCategory);
 		return new ExpenseListResponse(content, nextCursor, slice.hasNext(), summary);
 	}
 

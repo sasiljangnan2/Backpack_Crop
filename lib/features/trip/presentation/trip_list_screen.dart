@@ -193,7 +193,7 @@ class _TripCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${trip.destination} · ${Fmt.range(trip.startDate, trip.endDate)}',
+                  '${trip.destination} · ${trip.currencyCode} · ${Fmt.range(trip.startDate, trip.endDate)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, color: AppColors.muted),
