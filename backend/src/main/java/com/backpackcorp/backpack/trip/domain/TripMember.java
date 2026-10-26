@@ -77,4 +77,9 @@ public class TripMember extends BaseEntity {
 		this.guestTokenHash = guestTokenHash;
 		this.prepaidRate = prepaidRate;
 	}
+
+	// 나갔던 여행에 초대 코드로 다시 들어온다. 지출 · 정산 기록이 이 멤버 ID에 남아 있어 새로 만들지 않는다
+	public void rejoin() {
+		this.leftAt = null;
+	}
 }

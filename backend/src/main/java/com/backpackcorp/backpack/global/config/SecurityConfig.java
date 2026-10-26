@@ -82,6 +82,8 @@ public class SecurityConfig {
 				.requestMatchers(PUBLIC_APIS).permitAll()
 				// 로그인한 사용자를 꺼내 쓰는 API. 토큰 없이 오면 사용자가 null이라 500이 나므로 여기서 401로 막는다
 				.requestMatchers("/api/users/**").authenticated()
+				// 여행 API(TripController)만 잠근다. /api/trips/{tripId}/schedules 같은 하위 경로는 아직 개발 중이라 열어 둔다
+				.requestMatchers("/api/trips", "/api/trips/join", "/api/trips/*", "/api/trips/*/members").authenticated()
 				// TODO(개발용): 다른 API가 토큰 없이 개발 중이라 나머지 요청은 모두 허용한다.
 				//  운영 배포 전에 .anyRequest().authenticated() 로 되돌리고
 				//  SecurityConfigTest의 @Disabled 테스트를 다시 켤 것
