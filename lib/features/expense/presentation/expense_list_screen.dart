@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../settlement/data/preview_settlement_repository.dart';
+import '../../settlement/presentation/settlement_screen.dart';
+import '../../settlement/presentation/settlement_strings.dart';
 import '../data/expense_repository.dart';
 import '../data/expense_request.dart';
 import '../data/memory_expense_repository.dart';
@@ -26,13 +29,13 @@ class ExpenseListScreen extends StatefulWidget {
 
 class _ExpenseListScreenState extends State<ExpenseListScreen> {
   late final ExpenseListController _controller;
+  late final ExpenseRepository _repository;
 
   @override
   void initState() {
     super.initState();
-    _controller = ExpenseListController(
-      widget.repository ?? MemoryExpenseRepository(),
-    )..load();
+    _repository = widget.repository ?? MemoryExpenseRepository();
+    _controller = ExpenseListController(_repository)..load();
   }
 
   @override
@@ -75,6 +78,24 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
       builder: (_) => ExpenseDetailScreen(expense: expense, onEdit: _edit),
     ),
   );
+
+  void _settlement() {
+    final trip = _controller.trip;
+    if (trip == null) {
+      return;
+    }
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SettlementScreen(
+          tripName: trip.tripName,
+          currentMemberId: trip.currentMemberId,
+          repository: PreviewSettlementRepository(_repository),
+          isPreview: true,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -132,6 +153,13 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
                       totalKrw: _controller.totalKrw,
                       myShareKrw: _controller.myShareKrw,
                       budgetKrw: trip!.budgetKrw,
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      key: const ValueKey('expense-settlement'),
+                      onPressed: _settlement,
+                      icon: const Icon(Icons.swap_horiz),
+                      label: const Text(SettlementStrings.previewOpen),
                     ),
                     const SizedBox(height: 14),
                     const Text(
