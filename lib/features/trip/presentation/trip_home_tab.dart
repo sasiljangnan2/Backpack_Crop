@@ -7,7 +7,7 @@ import '../../../core/utils/format.dart';
 import '../../../core/widgets/common.dart';
 import '../../notification/presentation/notification_bell.dart';
 import '../../expense/data/expense_models.dart';
-import '../../expense/presentation/expense_form_screen.dart';
+import '../../expense/presentation/receipt_capture_screen.dart';
 import '../../schedule/data/schedule_models.dart';
 import '../../schedule/presentation/poll_screens.dart';
 import '../../replan/presentation/replan_screen.dart';
@@ -1146,7 +1146,7 @@ class _MoneyCard extends StatelessWidget {
 
   Future<void> _addExpense(BuildContext context) async {
     final created = await Navigator.of(context).push<ExpenseDetail>(
-      MaterialPageRoute(builder: (_) => ExpenseFormScreen(trip: trip)),
+      MaterialPageRoute(builder: (_) => ReceiptCaptureScreen(trip: trip)),
     );
     if (created != null) {
       onExpenseAdded();

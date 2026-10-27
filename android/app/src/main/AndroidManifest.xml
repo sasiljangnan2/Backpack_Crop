@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- 서버 API 호출 -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- 안드로이드 13 이상에서 푸시 알림을 보여 주려면 사용자 허락이 필요하다 -->
@@ -6,6 +7,9 @@
     <!-- 일정 지도의 내 위치 · AI 재구성의 현재 장소 (앱을 쓰는 동안만) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- 영수증 촬영 (앱 안 카메라 미리보기). 소리는 녹음하지 않으므로 camera 플러그인이 넣는 녹음 권한은 뺀다 -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove"/>
 
     <!-- 출시 빌드는 HTTPS만 쓴다 (network_security_config). 디버그 빌드만 로컬 서버(http) 허용 -->
     <application

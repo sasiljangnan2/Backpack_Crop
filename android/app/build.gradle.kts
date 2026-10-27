@@ -78,6 +78,10 @@ android {
             }
             isMinifyEnabled = true
             isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
@@ -90,4 +94,12 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // 영수증 OCR(google_mlkit_text_recognition): 기본으로 든 라틴 문자 외에 한국어 · 일본어 · 중국어 모델을 앱에 넣는다
+    // (기기 안에서 읽는다. 인터넷 · 키가 필요 없다)
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
 }

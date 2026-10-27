@@ -10,7 +10,7 @@ import '../../trip/data/trip_models.dart';
 import '../../trip/presentation/trip_shell.dart';
 import '../data/expense_models.dart';
 import 'expense_detail_screen.dart';
-import 'expense_form_screen.dart';
+import 'receipt_capture_screen.dart';
 
 /// 경비 탭: 지출(BP-EX-001) · 정산(BP-ST-001) · 예산(BP-BG)
 class ExpenseTab extends StatefulWidget {
@@ -37,7 +37,8 @@ class _ExpenseTabState extends State<ExpenseTab> with TripTabRefresh {
   Future<void> _add() async {
     final scope = TripScope.of(context);
     final created = await Navigator.of(context).push<ExpenseDetail>(
-      MaterialPageRoute(builder: (_) => ExpenseFormScreen(trip: scope.trip)),
+      // 지출 등록 1/3 영수증 촬영 (직접 입력도 여기서 고른다)
+      MaterialPageRoute(builder: (_) => ReceiptCaptureScreen(trip: scope.trip)),
     );
     if (created != null) {
       _expenses.currentState?.reload();

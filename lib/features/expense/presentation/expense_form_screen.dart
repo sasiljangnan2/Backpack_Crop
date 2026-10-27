@@ -10,28 +10,48 @@ import '../../../core/utils/format.dart';
 import '../../../core/widgets/common.dart';
 import '../../trip/data/trip_models.dart';
 import '../data/expense_models.dart';
+import '../data/receipt_parser.dart';
 
 /// BP-EX-003 지출 입력 ① 항목 확인 → BP-EX-004 ② 분담 → 등록 완료.
 /// [existing]이 있으면 수정 화면이다 (항목·분담을 통째로 바꾼다).
+/// [receipt]가 있으면 영수증에서 읽은 가게 · 총액 · 날짜 · 항목을 채워 둔다 (BP-EX-002 → 003)
 class ExpenseFormScreen extends StatefulWidget {
-  const ExpenseFormScreen({super.key, required this.trip, this.existing});
+  const ExpenseFormScreen({
+    super.key,
+    required this.trip,
+    this.existing,
+    this.receipt,
+  });
 
   final TripDetail trip;
   final ExpenseDetail? existing;
+  final ReceiptScan? receipt;
 
   @override
   State<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
 }
 
 class _ItemState {
-  _ItemState({String name = '', String amount = '', Set<String>? members})
-    : name = TextEditingController(text: name),
-      amount = TextEditingController(text: amount),
-      members = members ?? {};
+  _ItemState({
+    String name = '',
+    String amount = '',
+    Set<String>? members,
+    this.qty = 1,
+    this.confidence,
+  }) : name = TextEditingController(text: name),
+       amount = TextEditingController(text: amount),
+       members = members ?? {};
 
   final TextEditingController name;
   final TextEditingController amount;
   final Set<String> members;
+
+  /// 영수증에서 읽은 항목의 수량 · 인식 신뢰도 (직접 넣은 항목은 1 · null)
+  final int qty;
+  final double? confidence;
+
+  /// 신뢰도가 낮아 확인이 필요한데 아직 고치지 않은 항목
+  bool needsCheck = false;
 
   void dispose() {
     name.dispose();
@@ -130,8 +150,50 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           }
       }
     }
+    final receipt = widget.receipt;
+    if (existing == null && receipt != null) {
+      _fillFromReceipt(receipt);
+    }
     _refreshRate();
   }
+
+  String _amountText(double value) => value == value.roundToDouble()
+      ? value.round().toString()
+      : value.toStringAsFixed(2);
+
+  void _fillFromReceipt(ReceiptScan receipt) {
+    _title.text = receipt.store ?? '';
+    if (receipt.total != null) {
+      _amount.text = _amountText(receipt.total!);
+    }
+    _category = receipt.category;
+    final date = receipt.date;
+    if (date != null &&
+        !date.isBefore(trip.startDate.subtract(const Duration(days: 120))) &&
+        !date.isAfter(trip.endDate.add(const Duration(days: 60)))) {
+      _paidDate = date;
+    }
+    final everyone = {for (final m in trip.members) m.memberId};
+    for (final item in receipt.items) {
+      _items.add(
+        _ItemState(
+          name: item.name,
+          amount: _amountText(item.amount),
+          members: {...everyone},
+          qty: item.qty,
+          confidence: item.confidence,
+        )..needsCheck = item.needsCheck,
+      );
+    }
+    // 항목 합계가 총액과 맞으면 항목별로 나누기를 먼저 보여 준다
+    if (_items.length >= 2 &&
+        (_itemsSum() - (receipt.total ?? 0)).abs() < 0.005) {
+      _split = SplitMethod.item;
+    }
+  }
+
+  double _itemsSum() =>
+      _items.fold<double>(0, (s, i) => s + (_parse(i.amount.text) ?? 0));
 
   @override
   void dispose() {
@@ -416,6 +478,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       children: [
+        if (widget.receipt != null && !_editing) ...[
+          _receiptPanel(widget.receipt!),
+          const SizedBox(height: 24),
+        ],
         const Text(
           '결제 정보',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
@@ -589,6 +655,235 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  // 영수증에서 읽은 내용 (BP-EX-003 A): 가게 · 일시 · 총액 · 인식 신뢰도, 확인 필요 항목, 항목 합계 검사
+  Widget _receiptPanel(ReceiptScan receipt) {
+    final symbol = Fmt.currencySymbols[_currency] ?? '';
+    final confidence = receipt.confidence;
+    final needsCheck = _items.where((i) => i.needsCheck).length;
+    final total = _parse(_amount.text) ?? 0;
+    final sum = _itemsSum();
+    final matches = _items.isNotEmpty && (sum - total).abs() < 0.005;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    receipt.store ?? '영수증',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    [
+                      if (receipt.date != null)
+                        '${receipt.date!.year}.${receipt.date!.month.toString().padLeft(2, '0')}.${receipt.date!.day.toString().padLeft(2, '0')}',
+                      if (receipt.time != null) Fmt.time(receipt.time!),
+                      if (confidence != null)
+                        '인식 신뢰도 ${(confidence * 100).round()}%',
+                    ].join(' · '),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '$symbol${Fmt.number(total)}',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+        if (needsCheck > 0) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFDEEF3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 18,
+                  color: AppColors.error,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$needsCheck개 항목의 인식 신뢰도가 낮아요. 금액을 확인해 주세요. '
+                    '고친 내용은 정산에 바로 반영돼요.',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.error,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (_items.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          const Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '항목',
+                  style: TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+              ),
+              SizedBox(
+                width: 40,
+                child: Text(
+                  '수량',
+                  style: TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+              ),
+              SizedBox(
+                width: 110,
+                child: Text(
+                  '금액',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final item in _items) _receiptItemRow(item, symbol),
+        ],
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: () => setState(
+                () => _items.add(
+                  _ItemState(
+                    members: {for (final m in trip.members) m.memberId},
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('항목 추가'),
+            ),
+            const Spacer(),
+            if (_items.isNotEmpty)
+              Row(
+                children: [
+                  Icon(
+                    matches ? Icons.check_circle_outline : Icons.error_outline,
+                    size: 16,
+                    color: matches ? AppColors.primaryText : AppColors.error,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    matches
+                        ? '항목 합계 = 영수증 총액'
+                        : '항목 합계 $symbol${Fmt.number(sum)} ≠ 총액',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: matches ? AppColors.primaryText : AppColors.error,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _receiptItemRow(_ItemState item, String symbol) {
+    final low = item.needsCheck;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
+      decoration: BoxDecoration(
+        color: low ? const Color(0xFFFDEEF3) : AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: low ? AppColors.error : Colors.transparent,
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: item.name,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    hintText: '항목 이름',
+                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              SizedBox(
+                width: 40,
+                child: Text(
+                  '×${item.qty}',
+                  style: const TextStyle(color: AppColors.muted),
+                ),
+              ),
+              SizedBox(
+                width: 110,
+                child: TextField(
+                  controller: item.amount,
+                  textAlign: TextAlign.right,
+                  keyboardType: TextInputType.numberWithOptions(decimal: !_krw),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(_krw ? r'[0-9]' : r'[0-9.]'),
+                    ),
+                  ],
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    prefixText: symbol,
+                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                  // 고치면 확인한 것으로 본다
+                  onChanged: (_) => setState(() => item.needsCheck = false),
+                ),
+              ),
+            ],
+          ),
+          if (low)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '확인 필요 · 인식 신뢰도 ${((item.confidence ?? 0) * 100).round()}%',
+                style: const TextStyle(fontSize: 11, color: AppColors.error),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
