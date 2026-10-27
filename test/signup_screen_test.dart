@@ -1,8 +1,10 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:backpack/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
   testWidgets(
     'Signup validates input and requires consent on a compact screen',
     (tester) async {
@@ -11,6 +13,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('회원가입'));
       await tester.tap(find.text('회원가입'));
       await tester.pumpAndSettle();

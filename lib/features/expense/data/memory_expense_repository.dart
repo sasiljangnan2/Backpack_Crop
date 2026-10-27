@@ -5,6 +5,7 @@ import 'sample_expense_split_repository.dart';
 
 /// Keeps previews for this app session; never sends a request to a server.
 class MemoryExpenseRepository implements ExpenseRepository {
+  MemoryExpenseRepository({this._trip});
   ExpenseTripContext? _trip;
   Future<void>? _initialization;
   final List<ExpenseRecord> _expenses = [];

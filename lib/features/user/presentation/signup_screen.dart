@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'core/theme/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/app_dependencies.dart';
+import '../../../core/network/api_exception.dart';
+import 'auth_strings.dart';
+import 'login_screen.dart';
 
 const _primary = AppColors.primary;
 const _ink = AppColors.ink;
@@ -21,21 +25,24 @@ class _SignupScreenState extends State<SignupScreen> {
   final _password = TextEditingController();
   final _confirmation = TextEditingController();
   bool _agreed = false;
+  bool _isBusy = false;
+  String? _error;
   bool _hidePassword = true;
   bool _hideConfirmation = true;
 
   bool get _passwordValid =>
-      _password.text.length >= 8 &&
-      RegExp(r'[A-Za-z]').hasMatch(_password.text) &&
-      RegExp(r'[0-9]').hasMatch(_password.text);
+      _password.text.length >= 8 && _password.text.length <= 64;
   bool get _emailValid =>
-      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(_email.text.trim());
+      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(_email.text.trim()) &&
+      _email.text.trim().length <= 255;
   bool get _ready =>
       _name.text.trim().isNotEmpty &&
+      _name.text.trim().length <= 20 &&
       _emailValid &&
       _passwordValid &&
       _password.text == _confirmation.text &&
-      _agreed;
+      _agreed &&
+      !_isBusy;
 
   @override
   void dispose() {
@@ -59,11 +66,51 @@ class _SignupScreenState extends State<SignupScreen> {
     if (mounted && agreed == true) setState(() => _agreed = true);
   }
 
-  void _submit() {
-    if (!_form.currentState!.validate() || !_agreed) return;
-    FocusManager.instance.primaryFocus?.unfocus();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('회원가입 기능은 준비 중이에요.')));
+  Future<void> _submit() async {
+    if (_isBusy || !_form.currentState!.validate() || !_agreed) {
+      return;
+    }
+    final repository = AppScope.of(context).auth.repository;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isBusy = true;
+      _error = null;
+    });
+    try {
+      final user = await repository.signup(
+        email: _email.text,
+        password: _password.text,
+        name: _name.text,
+      );
+      if (!mounted) {
+        return;
+      }
+      Navigator.pushReplacement<void, void>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LoginScreen(
+            initialEmail: user.email,
+            notice: AuthStrings.signupDone,
+          ),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error.status == 409
+              ? AuthStrings.emailConflict
+              : error.displayMessage,
+        );
+      }
+    } on Object {
+      if (mounted) {
+        setState(() => _error = AuthStrings.failed);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isBusy = false);
+      }
+    }
   }
 
   @override
@@ -107,13 +154,24 @@ class _SignupScreenState extends State<SignupScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (_error != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Text(
+                              _error!,
+                              style: const TextStyle(color: AppColors.error),
+                            ),
+                          ),
                         _field(
                           label: '이름',
                           controller: _name,
                           hint: '이름을 입력해 주세요',
                           autofillHints: const [AutofillHints.name],
-                          validator: (value) =>
-                              value!.trim().isEmpty ? '이름을 입력해 주세요.' : null,
+                          validator: (value) => value!.trim().isEmpty
+                              ? '이름을 입력해 주세요.'
+                              : value.trim().length > 20
+                              ? '이름은 20자 이내로 입력해 주세요.'
+                              : null,
                         ),
                         _field(
                           label: '이메일',
@@ -269,7 +327,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      child: const Text('가입하고 시작하기'),
+                      child: Text(_isBusy ? AuthStrings.saving : '가입하고 시작하기'),
                     ),
                   ),
                 ),
@@ -316,6 +374,7 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
           const SizedBox(height: 8),
           TextFormField(
+            enabled: !_isBusy,
             controller: controller,
             obscureText: obscure,
             keyboardType: keyboardType,
