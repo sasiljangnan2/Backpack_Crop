@@ -19,6 +19,7 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       mysql:
         image: mysql:8.4
@@ -66,6 +67,7 @@ jobs:
   # Dockerfile이 깨지지 않았는지 이미지를 실제로 빌드해 확인한다 (푸시하지 않는다)
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
 
