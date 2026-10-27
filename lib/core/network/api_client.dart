@@ -18,13 +18,15 @@ import 'token_storage.dart';
 class ApiClient {
   ApiClient({required this.tokens, http.Client? client, String? baseUrl})
     : _http = client ?? http.Client(),
-      _baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
+      baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
 
   static const _timeout = Duration(seconds: 15);
 
   final TokenStorage tokens;
   final http.Client _http;
-  final String _baseUrl;
+
+  /// 시험용 빌드에서는 앱 안에서 바꿀 수 있다 ([AppServices.changeServer])
+  String baseUrl;
   Future<bool>? _refreshing;
 
   /// 세션이 끊겼을 때(재발급 실패, 탈퇴 등) 한 번 불린다.
@@ -85,7 +87,7 @@ class ApiClient {
       for (final entry in (query ?? const {}).entries)
         if (entry.value != null) entry.key: entry.value.toString(),
     };
-    final uri = Uri.parse('$_baseUrl$path')
+    final uri = Uri.parse('$baseUrl$path')
         .replace(queryParameters: params.isEmpty ? null : params);
     final request = http.Request(method, uri)
       ..headers['Accept'] = 'application/json';

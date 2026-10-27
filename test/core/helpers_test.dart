@@ -1,3 +1,4 @@
+import 'package:backpack/core/config/server_address.dart';
 import 'package:backpack/core/network/json.dart';
 import 'package:backpack/core/utils/format.dart';
 import 'package:backpack/features/expense/data/expense_models.dart';
@@ -156,6 +157,36 @@ void main() {
 
     test('마감일 표기는 9.30(수)', () {
       expect(Fmt.monthDayWeek(DateTime(2026, 9, 30)), '9.30(수)');
+    });
+  });
+
+  group('서버 주소', () {
+    test('IP만 넣으면 http와 8080을 붙인다', () {
+      expect(
+        ServerAddress.normalize(' 172.20.10.3 '),
+        'http://172.20.10.3:8080',
+      );
+      expect(
+        ServerAddress.normalize('172.20.10.3:9090'),
+        'http://172.20.10.3:9090',
+      );
+      expect(
+        ServerAddress.normalize('http://172.20.10.3:8080/'),
+        'http://172.20.10.3:8080',
+      );
+    });
+
+    test('https 주소는 포트를 붙이지 않는다', () {
+      expect(
+        ServerAddress.normalize('https://api.backpack.app'),
+        'https://api.backpack.app',
+      );
+    });
+
+    test('주소가 아니면 null', () {
+      expect(ServerAddress.normalize(''), isNull);
+      expect(ServerAddress.normalize('ftp://172.20.10.3'), isNull);
+      expect(ServerAddress.normalize('http://'), isNull);
     });
   });
 }

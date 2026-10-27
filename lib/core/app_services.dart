@@ -7,6 +7,7 @@ import '../features/task/data/task_api.dart';
 import '../features/trip/data/trip_api.dart';
 import '../features/user/data/user_api.dart';
 import '../features/user/data/user_models.dart';
+import 'config/server_address.dart';
 import 'network/api_client.dart';
 import 'network/api_exception.dart';
 import 'network/token_storage.dart';
@@ -133,9 +134,10 @@ class AppServices {
     api.onSessionExpired = auth.forceSignOut;
   }
 
-  factory AppServices.create() {
+  static Future<AppServices> create() async {
     final tokens = TokenStorage();
-    return AppServices._(tokens, ApiClient(tokens: tokens));
+    final baseUrl = await ServerAddress.load();
+    return AppServices._(tokens, ApiClient(tokens: tokens, baseUrl: baseUrl));
   }
 
   /// 테스트용: 가짜 HTTP 클라이언트를 붙인 [ApiClient]를 받는다.
@@ -153,6 +155,12 @@ class AppServices {
   late final NotificationApi notifications;
   late final PushService push;
   late final AuthController auth;
+
+  /// 시험용 빌드에서 서버 주소를 바꾼다. 다음에 앱을 켜도 이 주소를 쓴다
+  Future<void> changeServer(String baseUrl) async {
+    await ServerAddress.save(baseUrl);
+    api.baseUrl = baseUrl;
+  }
 }
 
 /// main()에서 채운다. 화면은 `services.trips` 처럼 쓴다.

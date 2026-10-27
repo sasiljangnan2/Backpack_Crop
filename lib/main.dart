@@ -12,7 +12,7 @@ Future<void> main() async {
   Intl.defaultLocale = 'ko_KR';
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  services = AppServices.create();
+  services = await AppServices.create();
   await services.push.initialize();
   runApp(const BackpackApp());
   await services.auth.restore();

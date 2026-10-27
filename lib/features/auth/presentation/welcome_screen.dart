@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/config/server_address.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/server_address_sheet.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
 
@@ -119,7 +121,10 @@ class WelcomeScreen extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 26),
+                                if (ServerAddress.editable)
+                                  const Center(child: ServerAddressButton())
+                                else
+                                  const SizedBox(height: 26),
                               ],
                             ),
                           ),

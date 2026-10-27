@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../config/server_address.dart';
 import '../network/api_exception.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import 'server_address_sheet.dart';
 
 /// 흰 카드 (모서리 20)
 class AppCard extends StatelessWidget {
@@ -204,6 +206,17 @@ class ErrorView extends StatelessWidget {
                 child: const Text('다시 시도'),
               ),
             ],
+            // 시험용 빌드: PC 서버의 주소가 바뀌어 닿지 않을 때 여기서 고친다
+            if (offline && ServerAddress.editable)
+              TextButton(
+                onPressed: () async {
+                  if (await showServerAddressSheet(context)) {
+                    onRetry?.call();
+                  }
+                },
+                style: TextButton.styleFrom(foregroundColor: AppColors.muted),
+                child: const Text('서버 주소 바꾸기'),
+              ),
           ],
         ),
       ),
