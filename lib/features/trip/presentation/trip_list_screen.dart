@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../../../core/app_dependencies.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../schedule/presentation/schedule_previews.dart';
 import '../data/trip_repository.dart';
 import 'trip_create_screen.dart';
-import 'trip_join_screen.dart';
 import 'trip_expense_previews.dart';
+import 'trip_join_screen.dart';
 import 'trip_overview_screen.dart';
 import 'trip_strings.dart';
 import 'widgets/trip_card.dart';
@@ -25,6 +26,7 @@ class TripListScreen extends StatefulWidget {
 
 class _TripListScreenState extends State<TripListScreen> {
   final _expensePreviews = TripExpensePreviews();
+  final _schedulePreviews = SchedulePreviews();
   List<TripSummary> _trips = [];
   bool _isLoading = true;
   bool _isBusy = false;
@@ -112,6 +114,7 @@ class _TripListScreenState extends State<TripListScreen> {
         tripId: id,
         repository: widget.repository,
         expensePreviews: _expensePreviews,
+        schedulePreviews: _schedulePreviews,
         initial: initial,
         isPreview: widget.isPreview,
       ),
