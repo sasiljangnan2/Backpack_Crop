@@ -146,7 +146,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       }
     } on ApiException catch (error) {
       _message(error.displayMessage);
-      if (error.status == 409) {
+      if (error.code == 'CONFLICT') {
         _controller.load();
       }
     } on Object {

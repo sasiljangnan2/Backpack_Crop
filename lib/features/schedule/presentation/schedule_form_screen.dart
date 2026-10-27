@@ -311,7 +311,7 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
     } on ApiException catch (error) {
       if (mounted) {
         setState(() {
-          _hasConflict = error.status == 409 && _current != null;
+          _hasConflict = error.code == 'CONFLICT' && _current != null;
           _error = _hasConflict
               ? ScheduleStrings.conflict
               : error.displayMessage;
