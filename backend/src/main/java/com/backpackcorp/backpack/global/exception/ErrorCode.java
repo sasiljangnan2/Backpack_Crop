@@ -56,6 +56,16 @@ public enum ErrorCode {
 	// 조회 후 다른 사람이 먼저 고쳤을 때. 앱은 다시 불러와 보여 준다
 	VERSION_CONFLICT(HttpStatus.CONFLICT, "다른 사람이 먼저 수정했어요. 새로고침 후 다시 시도해 주세요."),
 
+	// Replan (AI 일정 재구성)
+	// 오늘이 여행 기간이 아닐 때
+	REPLAN_NOT_TODAY(HttpStatus.BAD_REQUEST, "여행 중인 날에만 일정을 다시 짤 수 있어요."),
+	// 고정 · 완료 · 다른 날 일정, 또는 그대로 둘 일정 뒤의 일정. details에 어떤 일정인지 담는다
+	REPLAN_INVALID_TARGET(HttpStatus.BAD_REQUEST, "다시 짤 수 없는 일정이 있어요."),
+	// 추천을 받은 지 30분이 지났을 때
+	REPLAN_EXPIRED(HttpStatus.GONE, "추천이 만료됐어요. 다시 추천받아 주세요."),
+	// 추천 뒤 다른 사람이 그날 일정을 바꿨을 때 (시안: "일정이 바뀌었어요, 다시 추천받기")
+	REPLAN_STALE(HttpStatus.CONFLICT, "일정이 바뀌었어요. 다시 추천받아 주세요."),
+
 	// Exchange rate
 	// 그 날짜와 이전 날짜 모두 환율이 없을 때. 앱은 원화 직접 입력(KRW)이나 직접 입력 환율(MANUAL)을 안내한다
 	EXCHANGE_RATE_NOT_FOUND(HttpStatus.NOT_FOUND, "환율 정보를 찾을 수 없습니다."),

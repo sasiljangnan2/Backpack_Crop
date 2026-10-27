@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/json.dart';
+import '../../place/data/place_models.dart';
 import 'schedule_models.dart';
 
 class ScheduleApi {
@@ -25,6 +26,7 @@ class ScheduleApi {
     required TimeOfDay end,
     required String title,
     String? placeText,
+    Place? place,
     String? memo,
     ReservationStatus reservation = ReservationStatus.none,
     bool locked = false,
@@ -37,6 +39,9 @@ class ScheduleApi {
         'endTime': timeParam(end),
         'title': title,
         'placeText': placeText,
+        'placeLat': ?place?.lat,
+        'placeLng': ?place?.lng,
+        'placeCategory': ?(place == null ? null : enumName(place.category)),
         'memo': memo,
         'reservationStatus': enumName(reservation),
         'isLocked': locked,
@@ -45,6 +50,7 @@ class ScheduleApi {
   );
 
   /// 보낸 값만 바뀐다. [placeText]·[memo]는 빈 문자열이면 지워진다.
+  /// [placeText]와 함께 [place]를 보내면 좌표를 바꾸고, 없이 보내면(다른 이름이면) 좌표가 지워진다
   Future<Schedule> update(
     String tripId,
     String scheduleId, {
@@ -54,6 +60,7 @@ class ScheduleApi {
     TimeOfDay? end,
     String? title,
     String? placeText,
+    Place? place,
     String? memo,
     ReservationStatus? reservation,
     bool? locked,
@@ -67,6 +74,9 @@ class ScheduleApi {
         'endTime': ?(end == null ? null : timeParam(end)),
         'title': ?title,
         'placeText': ?placeText,
+        'placeLat': ?place?.lat,
+        'placeLng': ?place?.lng,
+        'placeCategory': ?(place == null ? null : enumName(place.category)),
         'memo': ?memo,
         'reservationStatus': ?(reservation == null
             ? null

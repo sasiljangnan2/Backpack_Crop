@@ -26,3 +26,5 @@ storage:
 logging:
   level:
     org.hibernate.SQL: debug
+    # 지도 공용 서버(검색 · 경로)를 부르다 실패한 까닭을 본다
+    com.backpackcorp.backpack.place: debug

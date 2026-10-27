@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import '../features/expense/data/expense_api.dart';
 import '../features/notification/data/notification_api.dart';
+import '../features/place/data/place_api.dart';
+import '../features/replan/data/replan_api.dart';
 import '../features/schedule/data/schedule_api.dart';
 import '../features/task/data/task_api.dart';
 import '../features/trip/data/trip_api.dart';
@@ -128,6 +130,8 @@ class AppServices {
     schedules = ScheduleApi(api);
     expenses = ExpenseApi(api);
     tasks = TaskApi(api);
+    places = PlaceApi(api);
+    replans = ReplanApi(api);
     notifications = NotificationApi(api);
     push = PushService(notifications);
     auth = AuthController(tokens, users, push);
@@ -152,6 +156,8 @@ class AppServices {
   late final ScheduleApi schedules;
   late final ExpenseApi expenses;
   late final TaskApi tasks;
+  late final PlaceApi places;
+  late final ReplanApi replans;
   late final NotificationApi notifications;
   late final PushService push;
   late final AuthController auth;

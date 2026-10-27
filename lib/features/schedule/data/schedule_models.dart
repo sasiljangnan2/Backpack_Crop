@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/network/json.dart';
+import '../../place/data/place_models.dart';
 import '../../trip/data/trip_models.dart';
 
 enum ScheduleStatus { planned, inProgress, done }
@@ -36,9 +37,13 @@ class Schedule {
     required this.endTime,
     required this.title,
     required this.placeText,
+    this.placeLat,
+    this.placeLng,
+    this.placeCategory,
     required this.isLocked,
     required this.reservationStatus,
     required this.memo,
+    this.replanned = false,
     required this.status,
     required this.activity,
     required this.createdBy,
@@ -52,6 +57,15 @@ class Schedule {
     endTime: time(json['endTime']),
     title: json['title'] as String,
     placeText: json['placeText'] as String?,
+    placeLat: decimalOrNull(json['placeLat']),
+    placeLng: decimalOrNull(json['placeLng']),
+    placeCategory: json['placeCategory'] == null
+        ? null
+        : enumOf(
+            PlaceCategory.values,
+            json['placeCategory'],
+            PlaceCategory.etc,
+          ),
     isLocked: json['isLocked'] as bool? ?? false,
     reservationStatus: enumOf(
       ReservationStatus.values,
@@ -59,6 +73,7 @@ class Schedule {
       ReservationStatus.none,
     ),
     memo: json['memo'] as String?,
+    replanned: json['replanned'] as bool? ?? false,
     status: enumOf(
       ScheduleStatus.values,
       json['status'],
@@ -77,13 +92,23 @@ class Schedule {
   final TimeOfDay endTime;
   final String title;
   final String? placeText;
+
+  /// 장소 검색에서 고른 좌표. 장소를 글자로만 적었으면 null
+  final double? placeLat;
+  final double? placeLng;
+  final PlaceCategory? placeCategory;
   final bool isLocked;
   final ReservationStatus reservationStatus;
   final String? memo;
+
+  /// AI 재구성으로 바뀐 뒤 사람이 고치지 않은 일정 ("재구성" 배지)
+  final bool replanned;
   final ScheduleStatus status;
   final ScheduleActivity? activity;
   final MemberRef createdBy;
   final int version;
+
+  bool get hasPlace => placeLat != null && placeLng != null;
 
   int get durationMinutes =>
       (endTime.hour * 60 + endTime.minute) -

@@ -35,8 +35,13 @@ class ApiClient {
   Future<dynamic> get(String path, {Map<String, Object?>? query}) =>
       _send('GET', path, query: query);
 
-  Future<dynamic> post(String path, {Object? body, bool auth = true}) =>
-      _send('POST', path, body: body, auth: auth);
+  /// [timeout]: 기본 15초보다 오래 걸리는 요청 (AI 일정 재구성)
+  Future<dynamic> post(
+    String path, {
+    Object? body,
+    bool auth = true,
+    Duration? timeout,
+  }) => _send('POST', path, body: body, auth: auth, timeout: timeout);
 
   Future<dynamic> put(String path, {Object? body}) =>
       _send('PUT', path, body: body);
@@ -54,12 +59,27 @@ class ApiClient {
     Object? body,
     bool auth = true,
     bool retry = true,
+    Duration? timeout,
   }) async {
-    final response = await _raw(method, path, query, body, auth);
+    final response = await _raw(
+      method,
+      path,
+      query,
+      body,
+      auth,
+      timeout ?? _timeout,
+    );
     if (response.statusCode == 401 && auth) {
       final error = _parseError(response);
       if (error.code == 'TOKEN_EXPIRED' && retry && await _refresh()) {
-        return _send(method, path, query: query, body: body, retry: false);
+        return _send(
+          method,
+          path,
+          query: query,
+          body: body,
+          retry: false,
+          timeout: timeout,
+        );
       }
       if (tokens.hasSession) {
         await tokens.clear();
@@ -82,6 +102,7 @@ class ApiClient {
     Map<String, Object?>? query,
     Object? body,
     bool auth,
+    Duration timeout,
   ) async {
     final params = <String, String>{
       for (final entry in (query ?? const {}).entries)
@@ -100,8 +121,8 @@ class ApiClient {
       request.body = jsonEncode(body);
     }
     try {
-      final streamed = await _http.send(request).timeout(_timeout);
-      return await http.Response.fromStream(streamed).timeout(_timeout);
+      final streamed = await _http.send(request).timeout(timeout);
+      return await http.Response.fromStream(streamed).timeout(timeout);
     } on TimeoutException {
       throw const ApiException.timeout();
     } on SocketException {
@@ -123,9 +144,14 @@ class ApiClient {
       return false;
     }
     try {
-      final response = await _raw('POST', '/api/auth/reissue', null, {
-        'refreshToken': refresh,
-      }, false);
+      final response = await _raw(
+        'POST',
+        '/api/auth/reissue',
+        null,
+        {'refreshToken': refresh},
+        false,
+        _timeout,
+      );
       if (response.statusCode != 200) {
         return false;
       }

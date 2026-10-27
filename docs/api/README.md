@@ -140,6 +140,12 @@
 | | PUT | `/api/trips/{tripId}/schedules/{scheduleId}/activity` | 활동 기록 (POST도 같음) |
 | | DELETE | `/api/trips/{tripId}/schedules/{scheduleId}/activity` | 활동 기록 취소 |
 | | GET | `/api/trips/{tripId}/today` | 오늘 요약 |
+| | GET | `/api/trips/{tripId}/schedules/route?day=` | 그날 동선 (일정 사이 이동 시간 · 거리) |
+| AI 재구성 | POST | `/api/trips/{tripId}/replan` | 남은 일정 추천 3안 |
+| | POST | `/api/trips/{tripId}/replan/apply` | 고른 안 적용 |
+| 지도 · 장소 | GET | `/api/places/search?q=` | 장소 검색 (OpenStreetMap) |
+| | GET | `/api/places/reverse?lat=&lng=` | 좌표 → 장소 (현재 위치 이름) |
+| | GET | `/api/places/travel` | 두 곳 사이 이동 시간 |
 | 투표 | GET | `/api/trips/{tripId}/polls` | 목록 |
 | | POST | `/api/trips/{tripId}/polls` | 만들기 |
 | | GET | `/api/trips/{tripId}/polls/{pollId}` | 상세 (득표 수 포함) |
@@ -629,6 +635,76 @@
 | `delayMin` | 오늘 활동 기록의 지연 합계. 시안의 "45분 지연" 배너 |
 
 > 시연 때는 서버 설정 `APP_DEMO_NOW=2026-10-03T05:50:00Z`로 "지금"을 고정할 수 있다 (도쿄 14:50).
+
+### 장소 좌표 (V4)
+
+일정 요청 · 응답에 `placeLat` · `placeLng` · `placeCategory`(`FOOD` `CAFE` `SHOPPING` `SIGHT` `PARK` `LODGING` `TRANSPORT` `ETC`)가 있다.
+장소 검색(아래 10장)에서 고른 값을 `placeText`와 함께 보낸다. 수정할 때 `placeText`만 다른 이름으로 보내면 좌표 · 분류는 지워지고,
+같은 이름이면 그대로 둔다. 응답의 `replanned`는 AI 재구성으로 바뀐 뒤 사람이 고치지 않은 일정이다 ("재구성" 배지).
+
+### GET `/api/trips/{tripId}/schedules/route?day=2026-10-03` — 그날 동선 (BP-SC-001 ① · SC-004)
+
+좌표가 있는 일정끼리 시간 순서대로 잇는다. 걸어서 20분 이내면 `WALK`, 아니면 `DRIVE`(택시 · 대중교통 대신 쓰는 어림값).
+경로 서버에 닿지 못하면 직선거리로 어림하고 `estimated: true`.
+
+```json
+{
+  "day": "2026-10-03",
+  "legs": [
+    {"fromScheduleId": "…", "toScheduleId": "…",
+     "travel": {"mode": "WALK", "minutes": 8, "distanceM": 650, "walkMin": 8, "driveMin": 9, "estimated": false}}
+  ],
+  "totalDistanceM": 14700, "totalMin": 75, "placedCount": 6, "missingPlaceCount": 0
+}
+```
+
+---
+
+## 6-1. AI 일정 재구성 ✅ 구현 (BP-AI-002 · 003)
+
+다시 짤 구간은 **지금(진행 중인 다른 일정이 있으면 그 끝) ~ 그 뒤 처음 나오는 그대로 둘 일정(anchor, 보통 고정 일정)**.
+`GEMINI_API_KEY`가 있으면 Gemini(무료 등급)가 순서 · 머무는 시간 · 새로 들를 곳(안마다 2곳까지)을 고르고, 서버가 실제 이동 시간으로
+시각을 다시 맞춘다(고정 일정 · 겹침 규칙은 항상 지킨다). 키가 없거나 AI가 실패하면 규칙 기반 3안을 돌려준다 (`source: RULE`, `notice`에 이유).
+AI에는 일정 이름 · 장소 · 시간만 보낸다.
+
+### POST `/api/trips/{tripId}/replan`
+
+```json
+{
+  "currentPlace": {"name": "구로몬 시장", "lat": 34.6655, "lng": 135.5066, "fromGps": true},
+  "conditions": ["WALK_15", "REST", "INDOOR", "FOOD"],
+  "scheduleIds": ["신사이바시 쇼핑 id", "나카노시마 공원 id"]
+}
+```
+
+`currentPlace`가 없으면 마지막으로 끝낸 일정의 장소를 쓴다. 고정 · 완료 · 다른 날 일정, 그대로 둘 일정 뒤의 일정은 400 `REPLAN_INVALID_TARGET`,
+여행 중인 날이 아니면 400 `REPLAN_NOT_TODAY`.
+
+```json
+{
+  "requestId": "…", "source": "AI", "notice": null,
+  "context": {"currentPlace": "구로몬 시장", "currentPlaceFromGps": true, "now": "14:50",
+              "windowStart": "14:50", "windowEnd": "17:30", "doneCount": 2, "delayMin": 45,
+              "anchor": {"scheduleId": "…", "title": "우메다 스카이빌딩", "startTime": "17:30", "isLocked": true, "minutesUntil": 160}},
+  "plans": [
+    {"key": "CONDITION", "label": "조건 일치 우선", "reason": "…", "startTime": "15:05", "endTime": "17:00",
+     "travelMin": 18, "slackMin": 8, "conditionRate": 100,
+     "items": [{"scheduleId": null, "title": "다이마루 지하 식품관", "placeText": "…", "lat": 34.67, "lng": 135.50,
+                "category": "FOOD", "startTime": "15:05", "endTime": "15:55", "stayMin": 50,
+                "travelBefore": {"mode": "WALK", "minutes": 12, "…": "…"}, "isNew": true}],
+     "travelToAnchor": {"mode": "DRIVE", "minutes": 15, "…": "…"},
+     "dropped": [{"scheduleId": "…", "title": "나카노시마 공원 산책"}]},
+    {"key": "MIN_TRAVEL", "label": "이동 최소", "…": "…"},
+    {"key": "SLACK", "label": "시간 여유 우선", "…": "…"}
+  ]
+}
+```
+
+### POST `/api/trips/{tripId}/replan/apply`
+
+`{"requestId": "…", "planKey": "CONDITION"}` → 그날 일정 전체 (`ScheduleResponse[]`).
+빠지는(`dropped`) 일정은 지우고, 바뀌거나 새로 넣은 일정에는 `replanned: true`. 멤버들에게 `SCHEDULE_CHANGED` 알림.
+추천 뒤 그날 일정이 바뀌었으면 409 `REPLAN_STALE`, 추천을 받은 지 30분이 지났거나 이미 적용했으면 410 `REPLAN_EXPIRED`.
 
 ---
 
@@ -1215,3 +1291,16 @@
 ```
 
 `204 No Content`
+
+---
+
+## 10. 지도 · 장소 ✅ 구현
+
+OpenStreetMap 기반 무료 공용 서버(키 없음)를 서버가 대신 부르고 7일 캐시한다 (Nominatim: 검색 · 역지오코딩, OSRM: 도보 이동 시간. 차 시간은 도보 경로 거리로 어림한다).
+공용 서버 정책상 앱은 **검색 버튼을 눌렀을 때만** 검색한다 (입력할 때마다 찾는 자동완성 금지). 지도 그림(타일)은 앱이 OpenStreetMap에서 직접 받는다.
+
+| URL | 설명 |
+|---|---|
+| GET `/api/places/search?q=黒門市場&tripId=…` | 여행지 근처를 먼저 (`lat` · `lng`를 주면 그 근처). 결과 `[{name, address, lat, lng, category}]`, 서버에 닿지 못하면 빈 목록 |
+| GET `/api/places/reverse?lat=&lng=` | 그 자리의 장소 (`PlaceResponse`). 못 찾으면 204 |
+| GET `/api/places/travel?fromLat=&fromLng=&toLat=&toLng=` | 두 곳 사이 이동 (`TravelLeg`) |

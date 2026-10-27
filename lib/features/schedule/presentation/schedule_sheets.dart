@@ -6,6 +6,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/widgets/common.dart';
 import '../../trip/data/trip_models.dart';
+import '../../place/data/place_models.dart';
+import '../../place/presentation/place_search_sheet.dart';
 import '../data/schedule_models.dart';
 
 Future<TimeOfDay?> pickTime(
@@ -49,7 +51,11 @@ class _ScheduleForm extends StatefulWidget {
 
 class _ScheduleFormState extends State<_ScheduleForm> {
   late final _title = TextEditingController(text: widget.existing?.title);
-  late final _place = TextEditingController(text: widget.existing?.placeText);
+  late String? _placeText = widget.existing?.placeText;
+
+  /// 장소 검색에서 고른 곳. 기존 일정의 좌표는 이름을 바꾸지 않는 한 서버가 그대로 둔다
+  Place? _place;
+  late bool _placeHasMap = widget.existing?.hasPlace ?? false;
   late final _memo = TextEditingController(text: widget.existing?.memo);
   late DateTime _day = widget.existing?.day ?? widget.day;
   late TimeOfDay _start =
@@ -69,7 +75,6 @@ class _ScheduleFormState extends State<_ScheduleForm> {
   @override
   void dispose() {
     _title.dispose();
-    _place.dispose();
     _memo.dispose();
     super.dispose();
   }
@@ -102,6 +107,28 @@ class _ScheduleFormState extends State<_ScheduleForm> {
     }
   }
 
+  Future<void> _pickPlace() async {
+    final picked = await showPlaceSearch(
+      context,
+      tripId: widget.trip.id,
+      initialQuery:
+          _placeText ??
+          (_title.text.trim().isEmpty ? null : _title.text.trim()),
+    );
+    if (picked == null) {
+      return;
+    }
+    setState(() {
+      _placeText = picked.text;
+      _place = picked.place;
+      _placeHasMap = picked.place != null;
+      // 이름을 아직 안 적었으면 장소 이름을 일정 이름으로 쓴다
+      if (_title.text.trim().isEmpty) {
+        _title.text = picked.text;
+      }
+    });
+  }
+
   Future<void> _save() async {
     if (_title.text.trim().isEmpty || !_timeValid) {
       setState(
@@ -129,7 +156,8 @@ class _ScheduleFormState extends State<_ScheduleForm> {
           start: _start,
           end: _end,
           title: _title.text.trim(),
-          placeText: _place.text.trim().isEmpty ? null : _place.text.trim(),
+          placeText: _placeText,
+          place: _place,
           memo: _memo.text.trim().isEmpty ? null : _memo.text.trim(),
           reservation: _reservation,
           locked: _locked,
@@ -155,7 +183,8 @@ class _ScheduleFormState extends State<_ScheduleForm> {
           start: _start,
           end: _end,
           title: _title.text.trim(),
-          placeText: _place.text.trim(),
+          placeText: _placeText ?? '',
+          place: _place,
           memo: _memo.text.trim(),
           reservation: _reservation,
           locked: _locked,
@@ -231,13 +260,15 @@ class _ScheduleFormState extends State<_ScheduleForm> {
               ),
               const SizedBox(height: 14),
               const FieldLabel('장소'),
-              TextField(
-                controller: _place,
-                maxLength: 100,
-                decoration: const InputDecoration(
-                  hintText: '예: 난바',
-                  counterText: '',
-                ),
+              _PlaceField(
+                text: _placeText,
+                onMap: _placeHasMap,
+                onPick: _pickPlace,
+                onClear: () => setState(() {
+                  _placeText = null;
+                  _place = null;
+                  _placeHasMap = false;
+                }),
               ),
               const SizedBox(height: 14),
               const FieldLabel('날짜 · 시간', required: true),
@@ -393,6 +424,80 @@ class _ScheduleFormState extends State<_ScheduleForm> {
   }
 }
 
+/// 장소 입력칸. 누르면 장소 검색이 열린다. 지도 핀 표시 = 좌표가 있는 장소
+class _PlaceField extends StatelessWidget {
+  const _PlaceField({
+    required this.text,
+    required this.onMap,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final String? text;
+  final bool onMap;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final empty = text == null || text!.isEmpty;
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        customBorder: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        onTap: onPick,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 6, 4, 6),
+          child: Row(
+            children: [
+              Icon(
+                onMap ? Icons.place : Icons.search,
+                size: 20,
+                color: onMap ? AppColors.primary : AppColors.muted,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      empty ? '장소 검색 (지도에 핀으로 보여요)' : text!,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: empty ? AppColors.muted : AppColors.ink,
+                        fontWeight: empty ? FontWeight.w400 : FontWeight.w600,
+                      ),
+                    ),
+                    if (!empty && !onMap)
+                      const Text(
+                        '이름만 적은 장소 · 눌러서 지도에서 찾기',
+                        style: TextStyle(fontSize: 11, color: AppColors.muted),
+                      ),
+                  ],
+                ),
+              ),
+              if (empty)
+                const SizedBox(height: 40)
+              else
+                IconButton(
+                  tooltip: '장소 지우기',
+                  onPressed: onClear,
+                  icon: const Icon(Icons.close, size: 18),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TimeButton extends StatelessWidget {
   const _TimeButton({
     required this.label,
@@ -424,11 +529,14 @@ class _TimeButton extends StatelessWidget {
 }
 
 /// BP-AI-004 활동 기록. 실제로 시작·종료한 시각을 남기면 지연이 다시 계산된다.
-Future<Schedule?> showActivitySheet(
+/// 활동 기록 결과. [replan]이면 "저장하고 추천받기"를 눌렀다 (AI 일정 재구성으로 이어 간다)
+typedef ActivityResult = ({Schedule schedule, bool replan});
+
+Future<ActivityResult?> showActivitySheet(
   BuildContext context, {
   required TripDetail trip,
   required Schedule schedule,
-}) => showModalBottomSheet<Schedule>(
+}) => showModalBottomSheet<ActivityResult>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
@@ -486,7 +594,7 @@ class _ActivitySheetState extends State<_ActivitySheet> {
     setState(() => _end = timeOfMinutes(minutes));
   }
 
-  Future<void> _save() async {
+  Future<void> _save({bool replan = false}) async {
     if (minutesOf(_end) < minutesOf(_start)) {
       showSnack(context, '실제 종료는 실제 시작과 같거나 늦어야 해요.');
       return;
@@ -504,11 +612,16 @@ class _ActivitySheetState extends State<_ActivitySheet> {
         end: _end,
       );
       if (mounted) {
-        Navigator.pop(context, saved);
-        showSnack(
-          context,
-          _delay > 0 ? '기록했어요 · ${Fmt.minutes(_delay)} 지연' : '기록했어요',
-        );
+        Navigator.pop<ActivityResult>(context, (
+          schedule: saved,
+          replan: replan,
+        ));
+        if (!replan) {
+          showSnack(
+            context,
+            _delay > 0 ? '기록했어요 · ${Fmt.minutes(_delay)} 지연' : '기록했어요',
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -533,13 +646,13 @@ class _ActivitySheetState extends State<_ActivitySheet> {
         day: widget.schedule.day,
       );
       if (mounted) {
-        Navigator.pop(
-          context,
-          refreshed.firstWhere(
+        Navigator.pop<ActivityResult>(context, (
+          schedule: refreshed.firstWhere(
             (s) => s.id == widget.schedule.id,
             orElse: () => widget.schedule,
           ),
-        );
+          replan: false,
+        ));
       }
     } catch (e) {
       if (mounted) {
@@ -643,11 +756,33 @@ class _ActivitySheetState extends State<_ActivitySheet> {
               ),
             ),
             const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: _busy ? null : _save,
-              icon: const Icon(Icons.check),
-              label: const Text('완료로 기록'),
-            ),
+            // 오늘 일정이면 기록하고 바로 남은 일정 추천을 받을 수 있다 (BP-AI-004 → AI-002)
+            if (_now != null)
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : _save,
+                      child: const Text('기록만 저장'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 3,
+                    child: FilledButton.icon(
+                      onPressed: _busy ? null : () => _save(replan: true),
+                      icon: const Icon(Icons.auto_awesome, size: 18),
+                      label: const Text('저장하고 추천받기'),
+                    ),
+                  ),
+                ],
+              )
+            else
+              FilledButton.icon(
+                onPressed: _busy ? null : _save,
+                icon: const Icon(Icons.check),
+                label: const Text('완료로 기록'),
+              ),
             if (schedule.activity != null) ...[
               const SizedBox(height: 8),
               TextButton(

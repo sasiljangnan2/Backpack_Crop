@@ -21,10 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.backpackcorp.backpack.global.security.BackpackUserDetails;
 import com.backpackcorp.backpack.schedule.dto.ActivityRequest;
+import com.backpackcorp.backpack.schedule.dto.DayRouteResponse;
 import com.backpackcorp.backpack.schedule.dto.ScheduleCreateRequest;
 import com.backpackcorp.backpack.schedule.dto.ScheduleResponse;
 import com.backpackcorp.backpack.schedule.dto.ScheduleUpdateRequest;
 import com.backpackcorp.backpack.schedule.dto.TodayResponse;
+import com.backpackcorp.backpack.schedule.service.ScheduleRouteService;
 import com.backpackcorp.backpack.schedule.service.ScheduleService;
 
 import jakarta.validation.Valid;
@@ -36,6 +38,7 @@ import lombok.RequiredArgsConstructor;
 public class ScheduleController {
 
 	private final ScheduleService scheduleService;
+	private final ScheduleRouteService scheduleRouteService;
 
 	// BP-SC-001 ?day=2026-11-01 (생략하면 전체)
 	@GetMapping("/schedules")
@@ -43,6 +46,13 @@ public class ScheduleController {
 		@PathVariable UUID tripId,
 		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
 		return scheduleService.getSchedules(tripId, BackpackUserDetails.requireId(user), day);
+	}
+
+	// BP-SC-001 ① · SC-004 그날 동선 ?day=2026-10-03
+	@GetMapping("/schedules/route")
+	public DayRouteResponse getDayRoute(@AuthenticationPrincipal BackpackUserDetails user, @PathVariable UUID tripId,
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
+		return scheduleRouteService.dayRoute(tripId, BackpackUserDetails.requireId(user), day);
 	}
 
 	@GetMapping("/schedules/{scheduleId}")

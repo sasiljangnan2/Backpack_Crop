@@ -26,3 +26,13 @@ jwt:
 # 테스트는 외부 환율 API를 부르지 않는다 (DB에 넣은 값만 쓴다)
 exchange-rate:
   fetch-enabled: false
+
+# 테스트는 지도 · AI 외부 서버를 부르지 않는다 (직선거리 어림값 · 규칙 기반 추천)
+map:
+  fetch-enabled: false
+ai:
+  gemini:
+    api-key: ""
+google:
+  maps:
+    api-key: ""

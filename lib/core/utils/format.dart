@@ -76,6 +76,11 @@ abstract final class Fmt {
     return rest == 0 ? '$hours시간' : '$hours시간 $rest분';
   }
 
+  /// 650m · 4.1km
+  static String distance(int meters) => meters < 1000
+      ? '${(meters / 10).round() * 10}m'
+      : '${(meters / 1000).toStringAsFixed(1)}km';
+
   /// 방금 · 5분 전 · 3시간 전 · 10.03
   static String ago(DateTime at) {
     final diff = DateTime.now().difference(at.toLocal());

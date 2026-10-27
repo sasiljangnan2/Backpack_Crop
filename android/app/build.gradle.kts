@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -20,6 +21,23 @@ val keyProperties = Properties().apply {
 }
 val hasReleaseKey = keyProperties.getProperty("storeFile") != null
 
+// flutter build/run의 --dart-define 값 (Flutter가 base64로 묶어 dart-defines 속성으로 넘긴다).
+// GOOGLE_MAPS_API_KEY를 AndroidManifest의 구글 지도 키로 넣는다. 키는 저장소에 넣지 않고 빌드할 때만 준다
+val dartDefines: Map<String, String> = (project.findProperty("dart-defines") as String?)
+    .orEmpty()
+    .split(",")
+    .filter { it.isNotBlank() }
+    .mapNotNull { encoded ->
+        val decoded = try {
+            String(Base64.getDecoder().decode(encoded), Charsets.UTF_8)
+        } catch (e: IllegalArgumentException) {
+            null
+        }
+        val pair = decoded?.split("=", limit = 2)
+        if (pair != null && pair.size == 2) pair[0] to pair[1] else null
+    }
+    .toMap()
+
 android {
     namespace = "com.backpackcorp.backpack"
     compileSdk = flutter.compileSdkVersion
@@ -37,6 +55,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["mapsApiKey"] = dartDefines["GOOGLE_MAPS_API_KEY"] ?: ""
     }
 
     signingConfigs {

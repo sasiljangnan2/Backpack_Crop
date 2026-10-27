@@ -66,5 +66,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>일정 지도에 내 위치를 보여 주고, 일정을 다시 짤 때 지금 있는 곳을 알아보는 데 써요.</string>
 </dict>
 </plist>

@@ -10,6 +10,7 @@ import '../../expense/data/expense_models.dart';
 import '../../expense/presentation/expense_form_screen.dart';
 import '../../schedule/data/schedule_models.dart';
 import '../../schedule/presentation/poll_screens.dart';
+import '../../replan/presentation/replan_screen.dart';
 import '../../schedule/presentation/schedule_sheets.dart';
 import '../../settlement/data/settlement_models.dart';
 import '../../settlement/presentation/settlement_screen.dart';
@@ -355,14 +356,20 @@ class _TodayCard extends StatelessWidget {
 
   Future<void> _record(BuildContext context, Schedule schedule) async {
     final scope = TripScope.of(context);
-    final updated = await showActivitySheet(
+    final result = await showActivitySheet(
       context,
       trip: trip,
       schedule: schedule,
     );
-    if (updated != null) {
-      await scope.reload();
+    if (result == null) {
+      return;
     }
+    if (result.replan && context.mounted) {
+      await Navigator.of(
+        context,
+      ).push<bool>(MaterialPageRoute(builder: (_) => ReplanScreen(trip: trip)));
+    }
+    await scope.reload();
   }
 
   @override

@@ -5,6 +5,10 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/widgets/common.dart';
+import '../../place/data/place_models.dart';
+import '../../place/presentation/schedule_map.dart';
+import '../../place/presentation/schedule_map_screen.dart';
+import '../../replan/presentation/replan_screen.dart';
 import '../../trip/data/trip_models.dart';
 import '../../trip/presentation/trip_shell.dart';
 import '../data/schedule_models.dart';
@@ -25,6 +29,12 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
   List<Poll> _openPolls = const [];
   Object? _error;
   String? _tripId;
+
+  /// 고른 날의 동선 (카드 사이 이동 · 지도 미리보기). 못 받아도 목록은 그대로 보인다
+  DayRoute _route = DayRoute.empty;
+
+  /// 여행 당일의 진행 요약 (BP-AI-001 ①)
+  TodaySummary? _today;
 
   @override
   int get tabIndex => TripShell.schedule;
@@ -74,6 +84,64 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
       if (mounted) {
         setState(() => _error = e);
       }
+    }
+    await _loadExtras();
+  }
+
+  // 동선 · 오늘 요약은 덧붙이는 정보라 실패해도 조용히 넘어간다
+  Future<void> _loadExtras() async {
+    final trip = TripScope.of(context).trip;
+    final day = _day ?? trip.startDate;
+    final isToday = sameDay(day, DateTime.now());
+    final results = await Future.wait<Object?>([
+      services.places.dayRoute(trip.id, day).catchError((_) => DayRoute.empty),
+      isToday
+          ? services.schedules
+                .today(trip.id)
+                .then<TodaySummary?>((t) => t)
+                .catchError((_) => null)
+          : Future<TodaySummary?>.value(null),
+    ]);
+    if (mounted && sameDay(_day ?? trip.startDate, day)) {
+      setState(() {
+        _route = results[0] as DayRoute;
+        _today = results[1] as TodaySummary?;
+      });
+    }
+  }
+
+  void _selectDay(DateTime date) {
+    setState(() {
+      _day = date;
+      _route = DayRoute.empty;
+      _today = null;
+    });
+    _loadExtras();
+  }
+
+  Future<void> _openMap() async {
+    final trip = TripScope.of(context).trip;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) =>
+            ScheduleMapScreen(trip: trip, day: _day ?? trip.startDate),
+      ),
+    );
+    _load();
+  }
+
+  Future<void> _openReplan() async {
+    final trip = TripScope.of(context).trip;
+    final applied = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => ReplanScreen(trip: trip)));
+    await _load();
+    if (applied == true && mounted) {
+      final others = trip.members.length - 1;
+      showSnack(
+        context,
+        others > 0 ? '남은 일정을 바꿨어요 · 참여자 $others명에게 변경 알림을 보냈어요' : '남은 일정을 바꿨어요',
+      );
     }
   }
 
@@ -144,12 +212,16 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
     try {
       switch (action) {
         case 'record':
-          if (await showActivitySheet(
-                context,
-                trip: trip,
-                schedule: schedule,
-              ) ==
-              null) {
+          final result = await showActivitySheet(
+            context,
+            trip: trip,
+            schedule: schedule,
+          );
+          if (result == null) {
+            return;
+          }
+          if (result.replan) {
+            await _openReplan();
             return;
           }
         case 'edit':
@@ -208,6 +280,11 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
       appBar: AppBar(
         title: const Text('일정'),
         actions: [
+          IconButton(
+            tooltip: '일정 지도',
+            onPressed: schedules == null ? null : _openMap,
+            icon: const Icon(Icons.map_outlined),
+          ),
           TextButton.icon(
             onPressed: () async {
               await Navigator.of(context).push(
@@ -239,12 +316,12 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final date = trip.dates[index];
-                return _DayTab(
+                return DayTabChip(
                   dayNo: index + 1,
                   date: date,
                   selected: sameDay(date, day),
                   isToday: sameDay(date, DateTime.now()),
-                  onTap: () => setState(() => _day = date),
+                  onTap: () => _selectDay(date),
                 );
               },
             ),
@@ -296,6 +373,20 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
                           ),
                           const SizedBox(height: 12),
                         ],
+                        // 여행 당일 = 진행 상황 먼저, 다른 날 = 지도 미리보기 (스토리보드 BP-SC-001 !)
+                        if (_today != null &&
+                            _today!.tripStatus == TripStatus.live) ...[
+                          _TodayProgress(today: _today!, onReplan: _openReplan),
+                          const SizedBox(height: 12),
+                        ] else if (_route.placedCount > 0) ...[
+                          _MapPreview(
+                            schedules: ofDay,
+                            route: _route,
+                            dayNo: trip.dayNumberOf(day),
+                            onOpen: _openMap,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         Padding(
                           padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
                           child: Text(
@@ -327,7 +418,7 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             child: Column(
                               children: [
-                                for (int i = 0; i < ofDay.length; i++)
+                                for (int i = 0; i < ofDay.length; i++) ...[
                                   _ScheduleRow(
                                     schedule: ofDay[i],
                                     index: i + 1,
@@ -335,6 +426,16 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
                                     isLast: i == ofDay.length - 1,
                                     onTap: () => _openActions(ofDay[i]),
                                   ),
+                                  // 카드 사이: 다음 일정까지 이동 수단 · 시간 · 거리
+                                  if (i + 1 < ofDay.length &&
+                                      _route
+                                              .legFrom(ofDay[i].id)
+                                              ?.toScheduleId ==
+                                          ofDay[i + 1].id)
+                                    _LegRow(
+                                      leg: _route.legFrom(ofDay[i].id)!.travel,
+                                    ),
+                                ],
                               ],
                             ),
                           ),
@@ -486,6 +587,8 @@ class _ScheduleRow extends StatelessWidget {
                           color: AppColors.warning,
                           background: AppColors.warningSoft,
                         ),
+                      if (schedule.replanned)
+                        const Pill('재구성', icon: Icons.auto_awesome),
                       if (schedule.isLocked)
                         const Pill(
                           '고정',
@@ -506,9 +609,10 @@ class _ScheduleRow extends StatelessWidget {
   }
 }
 
-/// DAY 탭 (스토리보드 BC-004 ④): 선택한 날만 검정, 일차별 색 점, 여행 당일은 "오늘"
-class _DayTab extends StatelessWidget {
-  const _DayTab({
+/// DAY 탭 (스토리보드 BC-004 ④, 일정 지도와 함께 쓴다): 선택한 날만 검정, 일차별 색 점, 여행 당일은 "오늘"
+class DayTabChip extends StatelessWidget {
+  const DayTabChip({
+    super.key,
     required this.dayNo,
     required this.date,
     required this.selected,
@@ -599,6 +703,166 @@ class _ActionTile extends StatelessWidget {
         style: TextStyle(color: color, fontWeight: FontWeight.w600),
       ),
       onTap: () => Navigator.pop(context, value),
+    );
+  }
+}
+
+/// 카드 사이 이동 한 줄: "도보 8분 · 650m"
+class _LegRow extends StatelessWidget {
+  const _LegRow({required this.leg});
+
+  final TravelLeg leg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(70, 0, 12, 2),
+      child: Row(
+        children: [
+          Icon(leg.icon, size: 14, color: AppColors.muted),
+          const SizedBox(width: 6),
+          Text(
+            leg.label,
+            style: const TextStyle(fontSize: 12, color: AppColors.muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// BP-SC-001 ① 그날 일정 지도 미리보기 · 총 이동 거리 · 시간 · 크게 보기
+class _MapPreview extends StatelessWidget {
+  const _MapPreview({
+    required this.schedules,
+    required this.route,
+    required this.dayNo,
+    required this.onOpen,
+  });
+
+  final List<Schedule> schedules;
+  final DayRoute route;
+  final int dayNo;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: EdgeInsets.zero,
+      onTap: onOpen,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 150,
+            child: IgnorePointer(
+              child: ScheduleMapView(
+                key: ValueKey(schedules.map((s) => s.id).join()),
+                schedules: schedules,
+                dayNo: dayNo,
+                interactive: false,
+                fitPadding: const EdgeInsets.all(28),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.route_outlined,
+                  size: 16,
+                  color: AppColors.success,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    route.legs.isEmpty
+                        ? '장소 ${route.placedCount}곳'
+                        : route.summary,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Text(
+                  '크게 보기',
+                  style: TextStyle(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(
+                  Icons.open_in_full,
+                  size: 14,
+                  color: AppColors.primaryText,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// BP-AI-001 ① 오늘 진행 요약: 완료 수 · 늦어진 시간 · 다음 고정 일정까지 + AI로 다시 짜기
+class _TodayProgress extends StatelessWidget {
+  const _TodayProgress({required this.today, required this.onReplan});
+
+  final TodaySummary today;
+  final VoidCallback onReplan;
+
+  @override
+  Widget build(BuildContext context) {
+    final fixed = today.nextFixed;
+    return AppCard(
+      color: AppColors.primarySoft,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: '${today.doneCount}건 완료'),
+                      if (today.delayMin > 0)
+                        TextSpan(
+                          text: ' · ${Fmt.minutes(today.delayMin)} 늦어짐',
+                          style: const TextStyle(color: AppColors.warning),
+                        ),
+                    ],
+                  ),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  fixed == null
+                      ? '남은 일정 ${today.remaining}개'
+                      : '다음 고정 일정까지 ${Fmt.minutes(fixed.minutesUntil)}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: onReplan,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+            ),
+            icon: const Icon(Icons.auto_awesome, size: 16),
+            label: const Text('AI로 다시 짜기'),
+          ),
+        ],
+      ),
     );
   }
 }

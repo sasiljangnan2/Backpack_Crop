@@ -3,8 +3,11 @@ package com.backpackcorp.backpack.schedule.dto;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+import com.backpackcorp.backpack.place.domain.PlaceCategory;
 import com.backpackcorp.backpack.schedule.domain.ReservationStatus;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -26,6 +29,17 @@ public record ScheduleUpdateRequest(
 	@Size(max = 100, message = "장소는 100자 이하로 입력해 주세요.")
 	String placeText,
 
+	// placeText와 함께 보낸다. placeText만 보내면 좌표 · 분류는 지워진다 (글자만 고친 장소)
+	@DecimalMin(value = "-90", message = "위도가 올바르지 않아요.")
+	@DecimalMax(value = "90", message = "위도가 올바르지 않아요.")
+	Double placeLat,
+
+	@DecimalMin(value = "-180", message = "경도가 올바르지 않아요.")
+	@DecimalMax(value = "180", message = "경도가 올바르지 않아요.")
+	Double placeLng,
+
+	PlaceCategory placeCategory,
+
 	ReservationStatus reservationStatus,
 
 	@Size(max = 500, message = "메모는 500자 이하로 입력해 주세요.")
@@ -36,6 +50,6 @@ public record ScheduleUpdateRequest(
 
 	public boolean changesOtherThanLock() {
 		return day != null || startTime != null || endTime != null || title != null || placeText != null
-			|| reservationStatus != null || memo != null;
+			|| placeLat != null || placeLng != null || reservationStatus != null || memo != null;
 	}
 }

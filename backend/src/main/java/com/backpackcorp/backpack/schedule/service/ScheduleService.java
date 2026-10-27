@@ -10,6 +10,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -25,6 +26,7 @@ import com.backpackcorp.backpack.notification.domain.NotificationRefType;
 import com.backpackcorp.backpack.notification.domain.NotificationType;
 import com.backpackcorp.backpack.notification.dto.TripNotificationEvent;
 import com.backpackcorp.backpack.expense.dto.MemberRef;
+import com.backpackcorp.backpack.place.domain.LatLng;
 import com.backpackcorp.backpack.schedule.domain.ReservationStatus;
 import com.backpackcorp.backpack.schedule.domain.Schedule;
 import com.backpackcorp.backpack.schedule.domain.ScheduleActivity;
@@ -88,6 +90,8 @@ public class ScheduleService {
 			.endTime(end)
 			.title(request.title().trim())
 			.placeText(blankToNull(request.placeText()))
+			.place(latLng(request.placeLat(), request.placeLng()))
+			.placeCategory(request.placeCategory())
 			.memo(blankToNull(request.memo()))
 			.reservationStatus(request.reservationStatus())
 			.locked(request.isLocked())
@@ -128,14 +132,26 @@ public class ScheduleService {
 		}
 
 		String title = request.title() != null ? notBlank(request.title()) : schedule.getTitle();
-		String placeText = request.placeText() != null ? blankToNull(request.placeText()) : schedule.getPlaceText();
 		String memo = request.memo() != null ? blankToNull(request.memo()) : schedule.getMemo();
 		ReservationStatus reservation = request.reservationStatus() != null
 			? request.reservationStatus()
 			: schedule.getReservationStatus();
-		schedule.changeDetails(title, placeText, memo, reservation);
+		schedule.changeDetails(title, memo, reservation);
+		if (request.placeText() != null) {
+			String placeText = blankToNull(request.placeText());
+			LatLng place = latLng(request.placeLat(), request.placeLng());
+			// 같은 장소 이름만 다시 보내면(좌표 없이) 원래 좌표를 둔다
+			if (place == null && Objects.equals(placeText, schedule.getPlaceText())) {
+				place = schedule.place();
+			}
+			schedule.changePlace(placeText, place,
+				request.placeCategory() != null || place == null ? request.placeCategory() : schedule.getPlaceCategory());
+		}
 		if (request.isLocked() != null) {
 			schedule.changeLocked(request.isLocked());
+		}
+		if (request.changesOtherThanLock()) {
+			schedule.clearReplanned();
 		}
 		// 응답의 version이 이번 수정을 반영하도록 먼저 반영한다
 		scheduleRepository.flush();
@@ -321,6 +337,11 @@ public class ScheduleService {
 
 	private static LocalTime minutes(LocalTime time) {
 		return time.truncatedTo(ChronoUnit.MINUTES);
+	}
+
+	// 위도 · 경도는 함께 있어야 좌표로 본다
+	private static LatLng latLng(Double lat, Double lng) {
+		return lat == null || lng == null ? null : new LatLng(lat, lng);
 	}
 
 	private static String blankToNull(String value) {

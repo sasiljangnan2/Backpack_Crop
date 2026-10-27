@@ -23,6 +23,16 @@ abstract final class AppConfig {
     return 'http://localhost:8080';
   }
 
+  /// 구글 지도 안드로이드 키 (Maps SDK for Android). 빌드할 때 넣으면 지도를 구글 지도로 그리고,
+  /// 없으면 OpenStreetMap으로 그린다. 같은 값이 AndroidManifest에도 들어간다 (android/app/build.gradle.kts)
+  static const googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+
+  /// iOS는 AppDelegate에 키를 넣는 설정을 아직 하지 않아 안드로이드에서만 구글 지도를 쓴다
+  static bool get useGoogleMaps =>
+      googleMapsApiKey.isNotEmpty &&
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android;
+
   /// Firebase 프로젝트 값. 모두 있을 때만 푸시 알림을 켠다
   /// (없으면 알림함만 쓰고 푸시는 받지 않는다).
   static const firebaseApiKey = String.fromEnvironment('FIREBASE_API_KEY');
