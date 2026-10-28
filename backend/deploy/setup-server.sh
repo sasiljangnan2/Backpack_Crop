@@ -50,21 +50,66 @@ if command -v iptables >/dev/null; then
 		fi
 	fi
 fi
-# 메모리 1GB짜리 서버(네이버 클라우드 Micro 등)에서는 MySQL과 서버가 함께 뜨지 못한다. 2GB 스왑을 만든다
+# 메모리 1GB짜리 서버(네이버 클라우드 Micro 등)에서는 MySQL과 서버가 함께 뜨지 못해 스왑을 만든다.
+# 디스크도 작으면(Micro 10GB) 스왑을 1GB로 해 이미지 · DB 자리를 남긴다
 mem_mb=$(awk '/MemTotal/ { print int($2 / 1024) }' /proc/meminfo)
-# 디스크가 작으면(Micro 10GB) 이미지를 받다 멈추므로 먼저 알린다
-free_mb=$(df -m --output=avail / | tail -1 | tr -d ' ')
-if [ "$free_mb" -lt 3000 ]; then
-	echo "디스크 여유가 ${free_mb}MB예요. 3GB 이상 있어야 이미지를 받을 수 있어요." >&2
-	exit 1
+disk_mb=$(df -m --output=size / | tail -1 | tr -d ' ')
+swap_mb=2048
+if [ "$disk_mb" -lt 20000 ]; then
+	swap_mb=1024
 fi
-if [ "$mem_mb" -lt 2048 ] && [ ! -f /swapfile ]; then
-	fallocate -l 2G /swapfile
+free_mb() { df -m --output=avail / | tail -1 | tr -d ' '; }
+make_swap() {
+	fallocate -l "${swap_mb}M" /swapfile
 	chmod 600 /swapfile
 	mkswap /swapfile >/dev/null
 	swapon /swapfile
+}
+
+# 지워도 되는 것만 지운다: 지난 배포의 서버 이미지 · 빌드 캐시, 패키지 캐시, 오래된 시스템 로그, 안 쓰는 snap 판
+docker builder prune -af >/dev/null 2>&1 || true
+docker image prune -f >/dev/null 2>&1 || true
+apt-get clean || true
+journalctl --vacuum-size=50M >/dev/null 2>&1 || true
+if command -v snap >/dev/null; then
+	snap list --all 2>/dev/null | awk '/disabled/ { print $1, $3 }' | while read -r name rev; do
+		snap remove "$name" --revision="$rev" >/dev/null 2>&1 || true
+	done
+fi
+
+# 처음 설치는 이미지(MySQL 등 약 1GB) 자리가, 업데이트는 새 서버 이미지 자리만 있으면 된다
+need_mb=500
+if ! docker image inspect mysql:8.4 >/dev/null 2>&1; then
+	need_mb=1500
+fi
+# 예전 설치가 만든 큰 스왑이 자리를 차지하면 줄인다. 스왑에 든 내용을 메모리로 옮길 수 있을 때만
+if [ -f /swapfile ] && [ "$(free_mb)" -lt "$need_mb" ]; then
+	swap_file_mb=$(($(stat -c %s /swapfile) / 1024 / 1024))
+	swap_used_mb=$(free -m | awk '/^Swap:/ { print $3 }')
+	mem_avail_mb=$(awk '/MemAvailable/ { print int($2 / 1024) }' /proc/meminfo)
+	if [ "$swap_file_mb" -gt "$swap_mb" ] && [ $((swap_used_mb + 150)) -lt "$mem_avail_mb" ]; then
+		echo "스왑을 ${swap_file_mb}MB에서 ${swap_mb}MB로 줄여 디스크 자리를 만들어요"
+		swapoff /swapfile
+		rm -f /swapfile
+		make_swap
+	fi
+fi
+if [ "$mem_mb" -lt 2048 ] && [ ! -f /swapfile ]; then
+	need_mb=$((need_mb + swap_mb))
+fi
+if [ "$(free_mb)" -lt "$need_mb" ]; then
+	echo "디스크 여유가 $(free_mb)MB예요. ${need_mb}MB 이상 있어야 해요. 자리를 많이 차지하는 곳:" >&2
+	du -xhd1 / 2>/dev/null | sort -h | tail -6 >&2 || true
+	docker system df >&2 || true
+	exit 1
+fi
+if [ "$mem_mb" -lt 2048 ] && [ ! -f /swapfile ]; then
+	make_swap
+fi
+if [ -f /swapfile ] && ! grep -q '^/swapfile ' /etc/fstab; then
 	echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
+echo "디스크 여유 $(free_mb)MB"
 
 echo "== 3/5 설정 (.env)"
 secret() { head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; }

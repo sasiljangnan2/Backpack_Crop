@@ -4,17 +4,26 @@
 # 밖에서는 Caddy의 80 · 443만 열린다. 서버 · MySQL · Redis는 이 컴포즈 안에서만 서로 보인다.
 name: backpack
 
+# 컨테이너 로그가 디스크(무료 서버는 10GB)를 채우지 않게 서비스마다 30MB까지만 남긴다
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   mysql:
     image: mysql:8.4
+    logging: *logging
     environment:
       MYSQL_DATABASE: backpack
       MYSQL_USER: backpack
       MYSQL_PASSWORD: ${DB_PASSWORD:?.env에 DB_PASSWORD가 없어요}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?.env에 MYSQL_ROOT_PASSWORD가 없어요}
       # TZ를 지정하지 않는다(UTC). 앱이 시각을 UTC로 저장하므로 DB의 CURRENT_TIMESTAMP도 UTC여야 한다
-    # 메모리 1GB짜리 무료 서버에서도 뜨게 줄인다 (사용자 수가 적을 때는 이걸로 충분하다)
-    command: --performance-schema=OFF --innodb-buffer-pool-size=${MYSQL_BUFFER_POOL:-128M}
+    # 메모리 1GB짜리 무료 서버에서도 뜨게 줄인다 (사용자 수가 적을 때는 이걸로 충분하다).
+    # 복제 서버가 없으므로 바이너리 로그를 끈다 (기본으로 켜져 있어 디스크를 계속 쓴다. 백업은 backup.sh)
+    command: --performance-schema=OFF --innodb-buffer-pool-size=${MYSQL_BUFFER_POOL:-128M} --disable-log-bin
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -26,6 +35,7 @@ services:
 
   redis:
     image: redis:8-alpine
+    logging: *logging
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?.env에 REDIS_PASSWORD가 없어요}
     # 리프레시 토큰이 들어 있으므로 비밀번호를 걸고, 재시작해도 남도록 디스크에 쓴다.
@@ -44,6 +54,7 @@ services:
 
   backend:
     build: .
+    logging: *logging
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:mysql://mysql:3306/backpack
@@ -74,6 +85,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
+    logging: *logging
     ports:
       - "80:80"
       - "443:443"

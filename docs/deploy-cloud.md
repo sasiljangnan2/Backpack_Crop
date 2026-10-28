@@ -16,7 +16,7 @@ PC를 꺼도 앱이 돌아가게, 서버를 **네이버 클라우드 플랫폼(N
 | DuckDNS 도메인 · HTTPS 인증서(Let's Encrypt) | 0원 |
 
 > 무료 기간 · 크레딧 조건은 바뀔 수 있으니 가입할 때 [NCP 크레딧 이벤트](https://www.ncloud.com/main/creditEvent?tab=1)에서 다시 확인한다.
-> 메모리 1GB는 빠듯하다. 설치 스크립트가 2GB 스왑을 만들고 서버 · MySQL 메모리를 줄여서 띄운다 (가족 · 친구 몇 명이 쓰기에는 충분하다).
+> 메모리 1GB는 빠듯하다. 설치 스크립트가 스왑(디스크 10GB면 1GB)을 만들고 서버 · MySQL 메모리를 줄여서 띄운다 (가족 · 친구 몇 명이 쓰기에는 충분하다).
 
 ## 1. 네이버 클라우드 가입 (직접)
 
@@ -75,7 +75,7 @@ powershell -ExecutionPolicy Bypass -File scripts\deploy-cloud.ps1 -Server <서�
 - 처음 접속하면 `Are you sure you want to continue connecting` 없이 바로 넘어가고, **root 비밀번호를 두 번** 묻는다 (복사 · 실행)
 - 스크립트가 하는 일 (`backend/scripts/deploy-cloud.ps1` → 서버에서 `backend/deploy/setup-server.sh`):
   1. PC에서 서버 jar를 빌드해 `backend/deploy` 폴더와 함께 서버에 복사
-  2. 서버에 Docker 설치, (메모리 1GB면) 2GB 스왑 · 메모리 절약 설정
+  2. 서버에 Docker 설치, 디스크 정리(지난 이미지 · 캐시 · 오래된 로그), (메모리 1GB면) 스왑 · 메모리 절약 설정
   3. DB · Redis 비밀번호와 JWT 키를 무작위로 만들어 서버의 `~/backpack/.env`에 저장 (처음 한 번만)
   4. MySQL · Redis · 서버 · Caddy 시작, Let's Encrypt 인증서 발급, 매일 새벽 4시 DB 백업 예약
   5. `https://도메인`으로 서버가 응답하는지 확인
