@@ -15,6 +15,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $backend = Split-Path $PSScriptRoot -Parent
 Set-Location $backend
+$Host.UI.RawUI.WindowTitle = 'Backpack 서버'
 
 if (-not (Test-Path .env)) {
     Copy-Item .env.example .env
@@ -56,6 +57,10 @@ try {
     $env:REDIS_PORT = "$RedisPort"
     $env:REDIS_PASSWORD = $redisPw
     Write-Host "서버: http://localhost:$ServerPort (멈추려면 Ctrl+C)"
+    # 폰 앱의 "서버 주소"에 넣을 값 (같은 Wi-Fi). PC 주소는 Wi-Fi에 다시 붙으면 바뀔 수 있다
+    $lanIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object { $_.PrefixOrigin -in 'Dhcp', 'Manual' -and $_.InterfaceAlias -notmatch 'vEthernet|WSL|Loopback' }).IPAddress
+    foreach ($ip in $lanIps) { Write-Host "폰 앱 서버 주소: http://$ip`:$ServerPort" }
     & .\gradlew.bat bootRun "--args=--server.port=$ServerPort"
 }
 finally {
