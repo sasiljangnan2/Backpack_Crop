@@ -1,0 +1,6 @@
+# DOMAIN(.env)으로 HTTPS 인증서를 Let's Encrypt에서 자동으로 받고, 만료 전에 알아서 갱신한다.
+# 받으려면 DOMAIN이 이 VM의 공인 IP를 가리키고, 80 · 443 포트가 열려 있어야 한다
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy backend:8080
+}

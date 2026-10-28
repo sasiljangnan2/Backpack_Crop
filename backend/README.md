@@ -97,6 +97,8 @@ curl -s localhost:8080/api/trips -H "Authorization: Bearer {accessToken}"
 
 운영 서버는 HTTPS 뒤(로드밸런서 · 리버스 프록시)에 둔다. 출시 앱은 http 서버에 접속하지 않는다.
 
+**무료 VM 한 대에 MySQL · Redis · HTTPS(Caddy)와 함께 올리기**: `deploy/`(docker compose)와 `scripts/deploy-cloud.ps1`. 순서는 [`docs/deploy-cloud.md`](../docs/deploy-cloud.md).
+
 이미지는 컨테이너의 `/app/storage`에 쌓이므로 볼륨을 붙여 실행한다.
 
 ```bash

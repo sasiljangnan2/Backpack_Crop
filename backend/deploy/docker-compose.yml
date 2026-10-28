@@ -1,0 +1,96 @@
+# 클라우드 VM 한 대에 서버 · MySQL · Redis · HTTPS(Caddy)를 함께 띄운다.
+# setup-server.sh가 실행한다. 값은 같은 폴더의 .env (setup-server.sh가 처음 한 번 만든다)
+#
+# 밖에서는 Caddy의 80 · 443만 열린다. 서버 · MySQL · Redis는 이 컴포즈 안에서만 서로 보인다.
+name: backpack
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: backpack
+      MYSQL_USER: backpack
+      MYSQL_PASSWORD: ${DB_PASSWORD:?.env에 DB_PASSWORD가 없어요}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?.env에 MYSQL_ROOT_PASSWORD가 없어요}
+      # TZ를 지정하지 않는다(UTC). 앱이 시각을 UTC로 저장하므로 DB의 CURRENT_TIMESTAMP도 UTC여야 한다
+    # 메모리 1GB짜리 무료 서버에서도 뜨게 줄인다 (사용자 수가 적을 때는 이걸로 충분하다)
+    command: --performance-schema=OFF --innodb-buffer-pool-size=${MYSQL_BUFFER_POOL:-128M}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?.env에 REDIS_PASSWORD가 없어요}
+    # 리프레시 토큰이 들어 있으므로 비밀번호를 걸고, 재시작해도 남도록 디스크에 쓴다.
+    # noeviction: 메모리가 차도 키를 지우지 않는다 (application-prod.yaml 참고)
+    command: >
+      sh -c 'exec redis-server --requirepass "$$REDIS_PASSWORD"
+      --appendonly yes --maxmemory 128mb --maxmemory-policy noeviction'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: .
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://mysql:3306/backpack
+      DB_USERNAME: backpack
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?.env에 JWT_SECRET이 없어요}
+      STORAGE_PUBLIC_BASE_URL: https://${DOMAIN}/files
+      # 푸시를 켜려면 서비스 계정 키를 secrets/에 두고 /app/secrets/<파일 이름>을 넣는다 (docs/deploy-cloud.md)
+      FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-}
+      EXIM_API_KEY: ${EXIM_API_KEY:-}
+      # AI 일정 재구성 (선택). 없으면 규칙 기반 추천만 쓴다
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # 구글 지도 서버 키 (선택). 없으면 OpenStreetMap으로 장소 · 이동 시간을 찾는다
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      # MySQL과 같은 VM에서 돌므로 힙을 정해 둔다
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms128m -Xmx512m}
+    volumes:
+      - storage:/app/storage
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?.env에 DOMAIN이 없어요}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # 받은 인증서. 지우면 다시 받는데, Let's Encrypt는 같은 주소로 자주 받으면 한동안 막는다
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  redis-data:
+  storage:
+  caddy-data:
+  caddy-config:

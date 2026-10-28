@@ -68,6 +68,7 @@ dev 프로필 서버는 DB가 비어 있으면 더미 계정(`host@backpack.dev`
 ## 출시 빌드
 
 1. **서버**: HTTPS로 서버를 배포합니다 (`backend/README.md`의 운영 환경변수 참고).
+   무료 VM 한 대에 올리는 방법과 스크립트는 [`docs/deploy-cloud.md`](docs/deploy-cloud.md)에 있습니다.
 2. **서명 키** (처음 한 번):
 
    ```powershell
