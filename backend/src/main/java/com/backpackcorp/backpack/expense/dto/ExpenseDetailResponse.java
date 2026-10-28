@@ -17,10 +17,12 @@ import com.backpackcorp.backpack.expense.domain.SplitMethod;
 import com.backpackcorp.backpack.trip.domain.TripMember;
 
 // 지출 상세. 등록 결과와 미리보기(id·version·시각이 null)가 같은 형식이다.
-// memberShares: 사람별 부담 합계 (화면의 "개인별 부담"). shareLocal은 표시용 외화 환산값
+// memberShares: 사람별 부담 합계 (화면의 "개인별 부담"). shareLocal은 표시용 외화 환산값.
+// titleKo · items[].nameKo: 외국어 영수증에서 읽은 이름의 한국어 번역 (없으면 null)
 public record ExpenseDetailResponse(
 	UUID id,
 	String title,
+	String titleKo,
 	ExpenseCategory category,
 	LocalDate paidDate,
 	String currencyCode,
@@ -43,6 +45,7 @@ public record ExpenseDetailResponse(
 	public record ItemResponse(
 		UUID id,
 		String name,
+		String nameKo,
 		BigDecimal amountLocal,
 		long amountKrw,
 		int sortOrder,
@@ -87,7 +90,7 @@ public record ExpenseDetailResponse(
 				? Remainder.NONE
 				: Remainder.of(itemKrw, itemBundle.shares());
 			return new ItemResponse(itemBundle.item().getId(), itemBundle.item().getName(),
-				itemBundle.item().getAmountLocal(), itemKrw, itemBundle.item().getSortOrder(), remainder.amountKrw(),
+				itemBundle.item().getNameKo(), itemBundle.item().getAmountLocal(), itemKrw, itemBundle.item().getSortOrder(), remainder.amountKrw(),
 				remainder.member() == null ? null : MemberRef.from(remainder.member()), shares);
 		}).toList();
 
@@ -96,7 +99,8 @@ public record ExpenseDetailResponse(
 				toLocal(total.shareKrw, expense.getAppliedRate()), total.member.getId().equals(payerId)))
 			.toList();
 
-		return new ExpenseDetailResponse(expense.getId(), expense.getTitle(), expense.getCategory(),
+		return new ExpenseDetailResponse(expense.getId(), expense.getTitle(), expense.getTitleKo(),
+			expense.getCategory(),
 			expense.getPaidDate(), currencyCode, expense.getRateMode(), expense.getAmountLocal(),
 			expense.getAppliedRate(), expense.getRateDate(), expense.getAmountKrw().longValueExact(),
 			expense.getSplitMethod(), MemberRef.from(expense.getPayer()), MemberRef.from(expense.getCreator()), items,

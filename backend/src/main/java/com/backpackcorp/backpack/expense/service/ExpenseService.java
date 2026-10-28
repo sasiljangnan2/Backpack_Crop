@@ -221,7 +221,7 @@ public class ExpenseService {
 		List<Long> itemAmountsKrw = allocateItems(request, money, itemRequests);
 
 		Expense planned = Expense.builder().trip(trip).payer(payer).creator(creator).title(request.title().trim())
-			.category(request.category()).paidDate(request.paidDate()).amountLocal(money.amountLocal())
+			.titleKo(blankToNull(request.titleKo())).category(request.category()).paidDate(request.paidDate()).amountLocal(money.amountLocal())
 			.rateMode(request.rateMode()).appliedRate(money.rate()).rateDate(money.rateDate())
 			.amountKrw(BigDecimal.valueOf(money.amountKrw())).splitMethod(request.splitMethod()).build();
 		Expense expense = planned;
@@ -239,7 +239,7 @@ public class ExpenseService {
 				? itemRequest.amountLocal()
 				: money.amountLocal();
 			ExpenseItem item = ExpenseItem.builder().expense(expense).name(itemName(itemRequest, i))
-				.amountLocal(request.rateMode() == RateMode.KRW ? null : itemLocal)
+				.nameKo(blankToNull(itemRequest.nameKo())).amountLocal(request.rateMode() == RateMode.KRW ? null : itemLocal)
 				.amountKrw(BigDecimal.valueOf(itemKrw)).sortOrder(i + 1).build();
 			Map<TripMember, Long> shares = splitItem(request.splitMethod(), "items[" + i + "]", itemRequest, itemKrw,
 				payer, members);
@@ -325,7 +325,7 @@ public class ExpenseService {
 				List<ExpenseShareRequest> members = request.memberIds().stream()
 					.map(id -> new ExpenseShareRequest(id, null))
 					.toList();
-				return List.of(new ExpenseItemRequest(SINGLE_ITEM_NAME, null, null, members));
+				return List.of(new ExpenseItemRequest(SINGLE_ITEM_NAME, null, null, null, members));
 			}
 			throw invalid("items", "분담할 사람을 1명 이상 선택해 주세요.");
 		}
@@ -414,6 +414,10 @@ public class ExpenseService {
 			.map(entry -> ExpenseItemUser.builder().item(item).member(entry.getKey())
 				.shareKrw(BigDecimal.valueOf(entry.getValue())).build())
 			.toList();
+	}
+
+	private static String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value.trim();
 	}
 
 	private static String itemName(ExpenseItemRequest item, int index) {

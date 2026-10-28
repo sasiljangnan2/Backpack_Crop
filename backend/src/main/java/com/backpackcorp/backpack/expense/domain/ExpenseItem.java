@@ -36,6 +36,10 @@ public class ExpenseItem extends BaseEntity {
 	@Column(nullable = false, length = 100)
 	private String name;
 
+	// 외국어 영수증에서 읽은 항목 이름의 한국어 번역. 없으면 null
+	@Column(length = 100)
+	private String nameKo;
+
 	@Column(precision = 15, scale = 2)
 	private BigDecimal amountLocal;
 
@@ -47,9 +51,11 @@ public class ExpenseItem extends BaseEntity {
 	private int sortOrder;
 
 	@Builder
-	private ExpenseItem(Expense expense, String name, BigDecimal amountLocal, BigDecimal amountKrw, int sortOrder) {
+	private ExpenseItem(Expense expense, String name, String nameKo, BigDecimal amountLocal, BigDecimal amountKrw,
+		int sortOrder) {
 		this.expense = expense;
 		this.name = name;
+		this.nameKo = nameKo;
 		this.amountLocal = amountLocal;
 		this.amountKrw = amountKrw;
 		this.sortOrder = sortOrder;

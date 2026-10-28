@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/app_services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../trip/data/trip_models.dart';
 import '../data/expense_models.dart';
@@ -187,16 +190,29 @@ class _ReceiptCaptureScreenState extends State<ReceiptCaptureScreen>
     await _read(image.path);
   }
 
+  // 서버(Gemini)와 기기 안 OCR(ML Kit)에 함께 맡긴다. 서버가 여러 줄 항목 · 세율 표시 · 외세를 훨씬 잘 읽고
+  // 한국어 번역도 붙인다. 서버에 닿지 못하거나 AI가 답하지 않으면 기기 안 OCR 결과를 쓴다
   Future<void> _read(String path) async {
     setState(() => _failed = false);
     final recognizer = TextRecognizer(script: _script);
+    final device = recognizer
+        .processImage(InputImage.fromFilePath(path))
+        .then<ReceiptScan?>(
+          (text) => ReceiptParser.parse(rowsOf(text), decimals: _decimals),
+        )
+        .catchError((Object _) => null);
+    // 기기 OCR이 끝나면 닫는다 (서버 답을 먼저 쓰면 아직 읽는 중일 수 있다)
+    unawaited(device.whenComplete(recognizer.close));
     try {
-      final text = await recognizer.processImage(InputImage.fromFilePath(path));
-      final scan = ReceiptParser.parse(rowsOf(text), decimals: _decimals);
+      final fromServer = await services.expenses
+          .scanReceipt(trip.id, path)
+          .then<ReceiptScan?>((scan) => scan)
+          .catchError((Object _) => null);
+      final scan = fromServer ?? await device;
       if (!mounted) {
         return;
       }
-      if ((scan.total ?? 0) <= 0) {
+      if (scan == null || (scan.total ?? 0) <= 0) {
         setState(() => _failed = true);
         return;
       }
@@ -206,7 +222,6 @@ class _ReceiptCaptureScreenState extends State<ReceiptCaptureScreen>
         setState(() => _failed = true);
       }
     } finally {
-      await recognizer.close();
       if (mounted) {
         setState(() => _reading = false);
       }
@@ -394,6 +409,11 @@ class _ReceiptCaptureScreenState extends State<ReceiptCaptureScreen>
                   Text(
                     '영수증을 읽고 있어요',
                     style: TextStyle(color: Colors.white, fontSize: 15),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    '외국어는 한국어로 옮겨 드려요',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ],
               ),

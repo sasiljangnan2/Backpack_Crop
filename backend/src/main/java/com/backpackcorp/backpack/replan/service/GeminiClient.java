@@ -2,6 +2,7 @@ package com.backpackcorp.backpack.replan.service;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +25,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 // Google Gemini API (generateContent). 무료 등급 키로 쓴다 (https://aistudio.google.com/apikey).
-// 무료 등급은 보낸 내용이 구글 제품 개선에 쓰일 수 있으므로 일정 이름 · 장소 · 시간만 보낸다 (이름 · 이메일은 보내지 않는다)
+// 무료 등급은 보낸 내용이 구글 제품 개선에 쓰일 수 있으므로 일정 이름 · 장소 · 시간과 영수증 사진만 보낸다
+// (회원 이름 · 이메일은 보내지 않는다)
 @Component
 public class GeminiClient {
 
@@ -65,13 +67,19 @@ public class GeminiClient {
 
 	// JSON으로만 답하게 한다. 모든 모델이 실패하거나 시간 안에 답하지 않으면 RuntimeException
 	public String generateJson(String instruction, String prompt, Map<String, Object> schema) {
+		return generateJson(instruction, List.of(Map.of("text", prompt)), schema, 0.4);
+	}
+
+	// 글과 사진을 함께 보낸다 (영수증 읽기). 사진은 imagePart로 만든다
+	public String generateJson(String instruction, List<Map<String, Object>> parts, Map<String, Object> schema,
+		double temperature) {
 		Map<String, Object> config = new HashMap<>();
 		config.put("responseMimeType", "application/json");
-		config.put("temperature", 0.4);
+		config.put("temperature", temperature);
 		config.put("responseSchema", schema);
 		Map<String, Object> body = Map.of(
 			"systemInstruction", Map.of("parts", List.of(Map.of("text", instruction))),
-			"contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", prompt)))),
+			"contents", List.of(Map.of("role", "user", "parts", parts)),
 			"generationConfig", config);
 		CompletionService<String> answers = new ExecutorCompletionService<>(EXECUTOR);
 		List<Future<String>> asked = models.stream()
@@ -98,6 +106,10 @@ public class GeminiClient {
 			asked.forEach(f -> f.cancel(true));
 		}
 		throw last != null ? last : new IllegalStateException("Gemini가 " + budget.toSeconds() + "초 안에 답하지 않았어요");
+	}
+
+	public static Map<String, Object> imagePart(String mimeType, byte[] data) {
+		return Map.of("inlineData", Map.of("mimeType", mimeType, "data", Base64.getEncoder().encodeToString(data)));
 	}
 
 	private String ask(String model, Map<String, Object> body, Map<String, Object> config) {

@@ -51,6 +51,10 @@ public class Expense extends BaseTimeEntity {
 	@Column(nullable = false, length = 100)
 	private String title;
 
+	// 외국어 영수증에서 읽은 가게 이름의 한국어 번역. 없으면 null
+	@Column(length = 100)
+	private String titleKo;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private ExpenseCategory category;
@@ -88,7 +92,7 @@ public class Expense extends BaseTimeEntity {
 	private int version;
 
 	@Builder
-	private Expense(Trip trip, TripMember payer, TripMember creator, String title,
+	private Expense(Trip trip, TripMember payer, TripMember creator, String title, String titleKo,
 		ExpenseCategory category,
 		LocalDate paidDate, BigDecimal amountLocal, RateMode rateMode, BigDecimal appliedRate, LocalDate rateDate,
 		BigDecimal amountKrw, SplitMethod splitMethod) {
@@ -96,6 +100,7 @@ public class Expense extends BaseTimeEntity {
 		this.payer = payer;
 		this.creator = creator;
 		this.title = title;
+		this.titleKo = titleKo;
 		this.category = category;
 		this.paidDate = paidDate;
 		this.amountLocal = amountLocal;
@@ -110,6 +115,7 @@ public class Expense extends BaseTimeEntity {
 	public void replaceWith(Expense source) {
 		this.payer = source.payer;
 		this.title = source.title;
+		this.titleKo = source.titleKo;
 		this.category = source.category;
 		this.paidDate = source.paidDate;
 		this.amountLocal = source.amountLocal;

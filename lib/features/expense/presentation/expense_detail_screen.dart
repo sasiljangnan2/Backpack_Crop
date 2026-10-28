@@ -7,6 +7,7 @@ import '../../../core/widgets/common.dart';
 import '../../trip/data/trip_models.dart';
 import '../data/expense_models.dart';
 import 'expense_form_screen.dart';
+import 'translation_text.dart';
 
 /// BP-EX-005 지출 상세. 고치거나 지우면 true를 돌려준다.
 class ExpenseDetailScreen extends StatefulWidget {
@@ -123,6 +124,8 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
+                      if (expense.titleKo case final ko?)
+                        Translation(ko, fontSize: 13),
                       const SizedBox(height: 4),
                       Text(
                         Fmt.krw(expense.amountKrw),
@@ -166,11 +169,18 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                item.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  if (item.nameKo case final ko?)
+                                    Translation(ko),
+                                ],
                               ),
                             ),
                             Text(

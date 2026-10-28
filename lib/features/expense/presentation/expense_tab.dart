@@ -330,11 +330,30 @@ class _ExpenseRow extends StatelessWidget {
       title: Row(
         children: [
           Flexible(
-            child: Text(
-              item.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                // 외국어 영수증에서 읽은 가게 이름은 한국어 번역을 밑에 둔다
+                if (item.titleKo case final ko?)
+                  Text(
+                    ko,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.muted,
+                    ),
+                  ),
+              ],
             ),
           ),
           // 결제자와 입력한 사람이 다르면 대리 입력 (스토리보드 BP-EX-001 ④)

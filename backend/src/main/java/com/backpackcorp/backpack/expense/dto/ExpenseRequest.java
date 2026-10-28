@@ -29,6 +29,10 @@ public record ExpenseRequest(
 	@Size(max = 100, message = "내용은 100자 이하로 입력해 주세요.")
 	String title,
 
+	// 선택. 외국어 영수증에서 읽은 가게 이름의 한국어 번역
+	@Size(max = 100, message = "번역은 100자 이하로 입력해 주세요.")
+	String titleKo,
+
 	@NotNull(message = "분류를 선택해 주세요.")
 	ExpenseCategory category,
 

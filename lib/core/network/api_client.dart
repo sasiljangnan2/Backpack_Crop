@@ -43,6 +43,14 @@ class ApiClient {
     Duration? timeout,
   }) => _send('POST', path, body: body, auth: auth, timeout: timeout);
 
+  /// 사진 한 장을 multipart로 올린다 (영수증 읽기). [field]는 파일 칸 이름
+  Future<dynamic> postFile(
+    String path, {
+    required String field,
+    required String filePath,
+    Duration? timeout,
+  }) => _send('POST', path, file: (field, filePath), timeout: timeout);
+
   Future<dynamic> put(String path, {Object? body}) =>
       _send('PUT', path, body: body);
 
@@ -60,6 +68,7 @@ class ApiClient {
     bool auth = true,
     bool retry = true,
     Duration? timeout,
+    (String, String)? file,
   }) async {
     final response = await _raw(
       method,
@@ -68,6 +77,7 @@ class ApiClient {
       body,
       auth,
       timeout ?? _timeout,
+      file: file,
     );
     if (response.statusCode == 401 && auth) {
       final error = _parseError(response);
@@ -79,6 +89,7 @@ class ApiClient {
           body: body,
           retry: false,
           timeout: timeout,
+          file: file,
         );
       }
       if (tokens.hasSession) {
@@ -102,23 +113,32 @@ class ApiClient {
     Map<String, Object?>? query,
     Object? body,
     bool auth,
-    Duration timeout,
-  ) async {
+    Duration timeout, {
+    (String, String)? file,
+  }) async {
     final params = <String, String>{
       for (final entry in (query ?? const {}).entries)
         if (entry.value != null) entry.key: entry.value.toString(),
     };
     final uri = Uri.parse('$baseUrl$path')
         .replace(queryParameters: params.isEmpty ? null : params);
-    final request = http.Request(method, uri)
-      ..headers['Accept'] = 'application/json';
+    final http.BaseRequest request;
+    if (file != null) {
+      // 서버가 파일 내용으로 형식을 판별하므로 Content-Type은 붙이지 않는다
+      request = http.MultipartRequest(method, uri)
+        ..files.add(await http.MultipartFile.fromPath(file.$1, file.$2));
+    } else {
+      final plain = http.Request(method, uri);
+      if (body != null) {
+        plain.headers['Content-Type'] = 'application/json; charset=utf-8';
+        plain.body = jsonEncode(body);
+      }
+      request = plain;
+    }
+    request.headers['Accept'] = 'application/json';
     final access = tokens.accessToken;
     if (auth && access != null) {
       request.headers['Authorization'] = 'Bearer $access';
-    }
-    if (body != null) {
-      request.headers['Content-Type'] = 'application/json; charset=utf-8';
-      request.body = jsonEncode(body);
     }
     try {
       final streamed = await _http.send(request).timeout(timeout);

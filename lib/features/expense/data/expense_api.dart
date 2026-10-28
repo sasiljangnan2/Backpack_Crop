@@ -2,6 +2,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/json.dart';
 import '../../settlement/data/settlement_models.dart';
 import 'expense_models.dart';
+import 'receipt_parser.dart';
 
 /// 지출 · 환율 · 정산 · 예산 API
 class ExpenseApi {
@@ -57,6 +58,18 @@ class ExpenseApi {
 
   Future<void> delete(String tripId, String expenseId) =>
       _api.delete('/api/trips/$tripId/expenses/$expenseId');
+
+  /// 영수증 사진을 서버(Gemini)가 읽는다 (항목 · 수량 · 금액 + 한국어 번역).
+  /// 사진을 올리고 AI가 읽는 데 5~20초쯤 걸려 40초까지 기다린다
+  Future<ReceiptScan> scanReceipt(String tripId, String imagePath) async =>
+      ReceiptScan.fromJson(
+        await _api.postFile(
+          '/api/trips/$tripId/receipts/scan',
+          field: 'image',
+          filePath: imagePath,
+          timeout: const Duration(seconds: 40),
+        ) as Json,
+      );
 
   Future<ExchangeRate> rate(String currencyCode, {DateTime? date}) async =>
       ExchangeRate.fromJson(

@@ -14,6 +14,7 @@ import com.backpackcorp.backpack.expense.domain.RateMode;
 public record ExpenseListItemResponse(
 	UUID id,
 	String title,
+	String titleKo,
 	ExpenseCategory category,
 	LocalDate paidDate,
 	RateMode rateMode,
@@ -27,7 +28,8 @@ public record ExpenseListItemResponse(
 ) {
 
 	public static ExpenseListItemResponse of(Expense expense, UUID myMemberId, long myShareKrw) {
-		return new ExpenseListItemResponse(expense.getId(), expense.getTitle(), expense.getCategory(),
+		return new ExpenseListItemResponse(expense.getId(), expense.getTitle(), expense.getTitleKo(),
+			expense.getCategory(),
 			expense.getPaidDate(), expense.getRateMode(), expense.getAmountLocal(),
 			expense.getAmountKrw().longValueExact(), MemberRef.from(expense.getPayer()),
 			MemberRef.from(expense.getCreator()), expense.getPayer().getId().equals(myMemberId), myShareKrw,

@@ -62,6 +62,7 @@ class ExpenseListItem {
   const ExpenseListItem({
     required this.id,
     required this.title,
+    this.titleKo,
     required this.category,
     required this.paidDate,
     required this.rateMode,
@@ -76,6 +77,7 @@ class ExpenseListItem {
   factory ExpenseListItem.fromJson(Json json) => ExpenseListItem(
     id: json['id'] as String,
     title: json['title'] as String,
+    titleKo: json['titleKo'] as String?,
     category: enumOf(
       ExpenseCategory.values,
       json['category'],
@@ -93,6 +95,9 @@ class ExpenseListItem {
 
   final String id;
   final String title;
+
+  /// 외국어 영수증에서 읽은 가게 이름의 한국어 번역
+  final String? titleKo;
   final ExpenseCategory category;
   final DateTime paidDate;
   final RateMode rateMode;
@@ -174,6 +179,7 @@ class ExpenseShare {
 class ExpenseItem {
   const ExpenseItem({
     required this.name,
+    this.nameKo,
     required this.amountLocal,
     required this.amountKrw,
     required this.remainderKrw,
@@ -183,6 +189,7 @@ class ExpenseItem {
 
   factory ExpenseItem.fromJson(Json json) => ExpenseItem(
     name: json['name'] as String,
+    nameKo: json['nameKo'] as String?,
     amountLocal: decimalOrNull(json['amountLocal']),
     amountKrw: integer(json['amountKrw']),
     remainderKrw: integer(json['remainderKrw']),
@@ -191,6 +198,9 @@ class ExpenseItem {
   );
 
   final String name;
+
+  /// 외국어 영수증에서 읽은 항목 이름의 한국어 번역
+  final String? nameKo;
   final double? amountLocal;
   final int amountKrw;
   final int remainderKrw;
@@ -227,6 +237,7 @@ class ExpenseDetail {
   const ExpenseDetail({
     required this.id,
     required this.title,
+    this.titleKo,
     required this.category,
     required this.paidDate,
     required this.currencyCode,
@@ -248,6 +259,7 @@ class ExpenseDetail {
   factory ExpenseDetail.fromJson(Json json) => ExpenseDetail(
     id: json['id'] as String?,
     title: json['title'] as String,
+    titleKo: json['titleKo'] as String?,
     category: enumOf(
       ExpenseCategory.values,
       json['category'],
@@ -276,6 +288,7 @@ class ExpenseDetail {
 
   final String? id;
   final String title;
+  final String? titleKo;
   final ExpenseCategory category;
   final DateTime paidDate;
   final String currencyCode;
@@ -303,6 +316,7 @@ class ExpenseDraft {
   ExpenseDraft({
     required this.payerMemberId,
     required this.title,
+    this.titleKo,
     required this.category,
     required this.paidDate,
     required this.rateMode,
@@ -317,6 +331,9 @@ class ExpenseDraft {
 
   String payerMemberId;
   String title;
+
+  /// 외국어 영수증의 가게 이름 번역 (내용을 고쳤으면 보내지 않는다)
+  String? titleKo;
   ExpenseCategory category;
   DateTime paidDate;
   RateMode rateMode;
@@ -335,6 +352,7 @@ class ExpenseDraft {
   Json toJson() => {
     'payerMemberId': payerMemberId,
     'title': title,
+    'titleKo': titleKo,
     'category': enumName(category),
     'paidDate': dateParam(paidDate),
     'rateMode': enumName(rateMode),
@@ -354,10 +372,17 @@ class ExpenseDraft {
 }
 
 class ExpenseItemDraft {
-  ExpenseItemDraft({this.name = '', this.amount, Map<String, int?>? members})
-    : members = members ?? {};
+  ExpenseItemDraft({
+    this.name = '',
+    this.nameKo,
+    this.amount,
+    Map<String, int?>? members,
+  }) : members = members ?? {};
 
   String name;
+
+  /// 외국어 영수증의 항목 이름 번역 (이름을 고쳤으면 보내지 않는다)
+  String? nameKo;
 
   /// 항목 금액 (원화 지출이면 원, 아니면 여행 통화)
   double? amount;
@@ -367,6 +392,7 @@ class ExpenseItemDraft {
 
   Json toJson(SplitMethod method, bool krw) => {
     'name': name.trim().isEmpty ? null : name.trim(),
+    'nameKo': nameKo,
     'amountLocal': method == SplitMethod.item && !krw ? amount : null,
     'amountKrw': method == SplitMethod.item && krw ? amount?.round() : null,
     'members': [

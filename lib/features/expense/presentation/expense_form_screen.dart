@@ -11,6 +11,7 @@ import '../../../core/widgets/common.dart';
 import '../../trip/data/trip_models.dart';
 import '../data/expense_models.dart';
 import '../data/receipt_parser.dart';
+import 'translation_text.dart';
 
 /// BP-EX-003 지출 입력 ① 항목 확인 → BP-EX-004 ② 분담 → 등록 완료.
 /// [existing]이 있으면 수정 화면이다 (항목·분담을 통째로 바꾼다).
@@ -37,8 +38,9 @@ class _ItemState {
     String amount = '',
     Set<String>? members,
     this.qty = 1,
-    this.confidence,
+    this.nameKo,
   }) : name = TextEditingController(text: name),
+       originalName = name.trim(),
        amount = TextEditingController(text: amount),
        members = members ?? {};
 
@@ -46,9 +48,16 @@ class _ItemState {
   final TextEditingController amount;
   final Set<String> members;
 
-  /// 영수증에서 읽은 항목의 수량 · 인식 신뢰도 (직접 넣은 항목은 1 · null)
+  /// 영수증에서 읽은 항목의 수량 (직접 넣은 항목은 1)
   final int qty;
-  final double? confidence;
+
+  /// 외국어 항목 이름의 한국어 번역과 번역한 원문
+  final String? nameKo;
+  final String originalName;
+
+  /// 이름을 고치면 번역이 맞지 않으므로 보여 주지도 저장하지도 않는다
+  String? get translation =>
+      nameKo != null && name.text.trim() == originalName ? nameKo : null;
 
   /// 신뢰도가 낮아 확인이 필요한데 아직 고치지 않은 항목
   bool needsCheck = false;
@@ -61,6 +70,9 @@ class _ItemState {
 
 class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   final _title = TextEditingController();
+  // 외국어 가게 이름의 한국어 번역과 번역한 원문 (내용을 고치면 번역을 빼고 저장한다)
+  String? _titleKo;
+  String _titleOriginal = '';
   final _amount = TextEditingController();
   final _manualRate = TextEditingController();
   late ExpenseCategory _category = ExpenseCategory.food;
@@ -87,6 +99,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   TripDetail get trip => widget.trip;
   bool get _editing => widget.existing != null;
+  String? get _titleTranslation =>
+      _titleKo != null && _title.text.trim() == _titleOriginal
+      ? _titleKo
+      : null;
   RateMode get _rateMode => _krw ? RateMode.krw : _foreignMode;
   String get _currency => _krw ? 'KRW' : trip.currencyCode;
   TripMember get _payer => trip.members.firstWhere(
@@ -109,6 +125,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final existing = widget.existing;
     if (existing != null) {
       _title.text = existing.title;
+      _titleOriginal = existing.title.trim();
+      _titleKo = existing.titleKo;
       _category = existing.category;
       _payerId = existing.payer.memberId;
       _paidDate = existing.paidDate;
@@ -135,6 +153,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             _items.add(
               _ItemState(
                 name: item.name,
+                nameKo: item.nameKo,
                 amount: _krw
                     ? item.amountKrw.toString()
                     : Fmt.number(item.amountLocal ?? 0).replaceAll(',', ''),
@@ -163,6 +182,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   void _fillFromReceipt(ReceiptScan receipt) {
     _title.text = receipt.store ?? '';
+    _titleOriginal = _title.text.trim();
+    _titleKo = receipt.storeKo;
+    // 해외 여행 중 한국 영수증(공항 · 면세점)이면 원화로 적는다
+    if (receipt.currency == 'KRW' && !_krw) {
+      _krw = true;
+    }
     if (receipt.total != null) {
       _amount.text = _amountText(receipt.total!);
     }
@@ -178,11 +203,22 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       _items.add(
         _ItemState(
           name: item.name,
+          nameKo: item.nameKo,
           amount: _amountText(item.amount),
           members: {...everyone},
           qty: item.qty,
-          confidence: item.confidence,
         )..needsCheck = item.needsCheck,
+      );
+    }
+    // 일본 외세 영수증: 항목 금액에 소비세를 더해야 총액이다. 세금을 항목으로 넣어 모두가 나눈다
+    final tax = receipt.addedTax;
+    if (tax != null) {
+      _items.add(
+        _ItemState(
+          name: '세금',
+          amount: _amountText(tax),
+          members: {...everyone},
+        ),
       );
     }
     // 항목 합계가 총액과 맞으면 항목별로 나누기를 먼저 보여 준다
@@ -258,6 +294,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final draft = ExpenseDraft(
       payerMemberId: _payerId,
       title: _title.text.trim(),
+      titleKo: _titleTranslation,
       category: _category,
       paidDate: _paidDate,
       rateMode: _rateMode,
@@ -280,6 +317,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           for (final item in _items)
             ExpenseItemDraft(
               name: item.name.text,
+              nameKo: item.translation,
               amount: _parse(item.amount.text),
               members: {for (final id in item.members) id: null},
             ),
@@ -497,6 +535,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           ),
           onChanged: (_) => setState(() {}),
         ),
+        if (_titleTranslation case final ko?) Translation(ko, indent: 4),
         const SizedBox(height: 14),
         const FieldLabel('결제자', required: true),
         Wrap(
@@ -661,7 +700,6 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   // 영수증에서 읽은 내용 (BP-EX-003 A): 가게 · 일시 · 총액 · 인식 신뢰도, 확인 필요 항목, 항목 합계 검사
   Widget _receiptPanel(ReceiptScan receipt) {
     final symbol = Fmt.currencySymbols[_currency] ?? '';
-    final confidence = receipt.confidence;
     final needsCheck = _items.where((i) => i.needsCheck).length;
     final total = _parse(_amount.text) ?? 0;
     final sum = _itemsSum();
@@ -683,14 +721,13 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+                  if (receipt.storeKo case final ko?) Translation(ko),
                   const SizedBox(height: 2),
                   Text(
                     [
                       if (receipt.date != null)
                         '${receipt.date!.year}.${receipt.date!.month.toString().padLeft(2, '0')}.${receipt.date!.day.toString().padLeft(2, '0')}',
                       if (receipt.time != null) Fmt.time(receipt.time!),
-                      if (confidence != null)
-                        '인식 신뢰도 ${(confidence * 100).round()}%',
                     ].join(' · '),
                     style: const TextStyle(
                       fontSize: 12,
@@ -725,8 +762,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '$needsCheck개 항목의 인식 신뢰도가 낮아요. 금액을 확인해 주세요. '
-                    '고친 내용은 정산에 바로 반영돼요.',
+                    '$needsCheck개 항목은 글자가 흐려 잘못 읽었을 수 있어요. '
+                    '금액을 확인해 주세요. 고친 내용은 정산에 바로 반영돼요.',
                     style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.error,
@@ -839,6 +876,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                     hintText: '항목 이름',
                   ),
                   style: const TextStyle(fontWeight: FontWeight.w600),
+                  minLines: 1,
+                  maxLines: 3,
+                  textInputAction: TextInputAction.done,
+                  onChanged: (_) => setState(() {}),
                 ),
               ),
               SizedBox(
@@ -874,12 +915,13 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               ),
             ],
           ),
+          if (item.translation case final ko?) Translation(ko, indent: 12),
           if (low)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 6),
               child: Text(
-                '확인 필요 · 인식 신뢰도 ${((item.confidence ?? 0) * 100).round()}%',
-                style: const TextStyle(fontSize: 11, color: AppColors.error),
+                '확인 필요',
+                style: TextStyle(fontSize: 11, color: AppColors.error),
               ),
             ),
         ],
@@ -1040,7 +1082,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                           hintText: '항목 ${index + 1}',
                           isDense: true,
                         ),
-                        onChanged: (_) => _schedulePreview(),
+                        onChanged: (_) {
+                          setState(() {});
+                          _schedulePreview();
+                        },
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1078,6 +1123,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                       ),
                   ],
                 ),
+                if (_items[index].translation case final ko?)
+                  Translation(ko, indent: 4),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
@@ -1368,8 +1415,10 @@ class _ExpenseDoneScreen extends StatelessWidget {
                 children: [
                   Text(
                     expense.title,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
+                  if (expense.titleKo case final ko?) Translation(ko),
                   const SizedBox(height: 6),
                   Text(
                     Fmt.krw(expense.amountKrw),

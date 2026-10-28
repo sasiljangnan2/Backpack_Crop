@@ -90,7 +90,7 @@ curl -s localhost:8080/api/trips -H "Authorization: Bearer {accessToken}"
 |---|---|
 | `EXIM_API_KEY` | 한국수출입은행 현재환율 API 인증키 (수출입은행 Open API에서 신청). 없으면 Frankfurter(ECB) → ExchangeRate-API만 쓴다 |
 | `EXCHANGE_RATE_FETCH_ENABLED` | 기본 `true`. `false`면 외부 환율 API를 부르지 않고 DB에 쌓인 값만 쓴다 |
-| `GEMINI_API_KEY` | AI 일정 재구성에 쓰는 Gemini 키 (Google AI Studio에서 무료 발급). 없으면 규칙 기반 추천만 쓴다. `GEMINI_MODEL`(기본 `gemini-3.6-flash`)로 모델을 바꾼다 |
+| `GEMINI_API_KEY` | AI 일정 재구성 · 영수증 읽기(번역 포함)에 쓰는 Gemini 키 (Google AI Studio에서 무료 발급). 없으면 규칙 기반 추천 · 기기 안 OCR만 쓴다. `GEMINI_MODEL`(기본 `gemini-3.6-flash`)로 모델을 바꾼다 |
 | `GOOGLE_MAPS_API_KEY` | 장소 검색 · 이동 시간에 쓰는 Google Maps Platform 서버 키 (Places API (New) · Routes API). 없으면 OpenStreetMap으로 찾는다 |
 | `MAP_FETCH_ENABLED` | 기본 `true`. `false`면 지도 공용 서버(OpenStreetMap)를 부르지 않고 직선거리 어림값만 쓴다 |
 | `APP_DEMO_NOW` | 시연용 고정 시각. **운영에서는 설정하지 않는다.** |

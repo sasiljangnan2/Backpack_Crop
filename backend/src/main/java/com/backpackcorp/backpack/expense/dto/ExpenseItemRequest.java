@@ -15,6 +15,10 @@ public record ExpenseItemRequest(
 	@Size(max = 100, message = "항목 이름은 100자 이하로 입력해 주세요.")
 	String name,
 
+	// 선택. 외국어 영수증에서 읽은 항목 이름의 한국어 번역
+	@Size(max = 100, message = "번역은 100자 이하로 입력해 주세요.")
+	String nameKo,
+
 	@Positive(message = "금액은 0보다 커야 해요.")
 	@Digits(integer = 13, fraction = 2, message = "금액은 소수 둘째 자리까지 입력할 수 있어요.")
 	BigDecimal amountLocal,

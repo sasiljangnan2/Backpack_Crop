@@ -66,6 +66,14 @@ public enum ErrorCode {
 	// 추천 뒤 다른 사람이 그날 일정을 바꿨을 때 (시안: "일정이 바뀌었어요, 다시 추천받기")
 	REPLAN_STALE(HttpStatus.CONFLICT, "일정이 바뀌었어요. 다시 추천받아 주세요."),
 
+	// Receipt (영수증 읽기). 앱은 이 오류들을 받으면 기기 안 OCR 결과를 대신 쓴다
+	// 서버에 Gemini 키가 없을 때
+	RECEIPT_AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "지금은 영수증을 서버에서 읽을 수 없어요."),
+	// Gemini가 답하지 않거나(붐빔 · 시간 초과) 답이 형식에 맞지 않을 때
+	RECEIPT_AI_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "영수증을 읽지 못했어요. 잠시 후 다시 시도해 주세요."),
+	// 영수증이 아니거나 총액을 찾지 못했을 때
+	RECEIPT_UNREADABLE(HttpStatus.UNPROCESSABLE_CONTENT, "영수증에서 금액을 찾지 못했어요. 다시 찍어 주세요."),
+
 	// Exchange rate
 	// 그 날짜와 이전 날짜 모두 환율이 없을 때. 앱은 원화 직접 입력(KRW)이나 직접 입력 환율(MANUAL)을 안내한다
 	EXCHANGE_RATE_NOT_FOUND(HttpStatus.NOT_FOUND, "환율 정보를 찾을 수 없습니다."),

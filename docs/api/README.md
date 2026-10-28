@@ -164,6 +164,7 @@
 | | GET | `/api/trips/{tripId}/expenses/{expenseId}` | 상세 |
 | | PUT | `/api/trips/{tripId}/expenses/{expenseId}` | 수정 (전체 교체) |
 | | DELETE | `/api/trips/{tripId}/expenses/{expenseId}` | 삭제 |
+| | POST | `/api/trips/{tripId}/receipts/scan` | 영수증 사진 읽기 (항목 · 금액 + 한국어 번역) |
 | 정산 | GET | `/api/trips/{tripId}/settlement` | 현재 정산 계산 결과 |
 | | GET | `/api/trips/{tripId}/settlement/me` | 내 정산 · 계산 근거 |
 | | POST | `/api/trips/{tripId}/settlement-shares` | 정산 결과 공유 (스냅샷 저장) |
@@ -983,6 +984,7 @@ AI에는 일정 이름 · 장소 · 시간만 보낸다.
 {
   "payerMemberId": "0192...",
   "title": "구로몬 시장",
+  "titleKo": null,
   "category": "FOOD",
   "paidDate": "2026-10-03",
   "rateMode": "API",
@@ -993,6 +995,10 @@ AI에는 일정 이름 · 장소 · 시간만 보낸다.
   "memberIds": ["0192...", "0192...", "0192...", "0192...", "0192..."]
 }
 ```
+
+`titleKo` · `items[].nameKo`(선택, 100자 이하): 외국어 영수증에서 읽은 가게 · 항목 이름의 한국어 번역.
+빈 값은 저장하지 않는다. 상세 · 목록 응답에도 같은 이름으로 나온다 (없으면 `null`).
+수정(PUT)도 전체 교체라서 보내지 않으면 지운다 (앱은 이름을 고치면 번역을 보내지 않는다).
 
 **환율 모드(`rateMode`)**
 
@@ -1100,6 +1106,49 @@ AI에는 일정 이름 · 장소 · 시간만 보낸다.
 ### DELETE `/api/trips/{tripId}/expenses/{expenseId}` ✅ 구현
 
 결제자 · 작성자 · 방장만. `204 No Content`
+
+### POST `/api/trips/{tripId}/receipts/scan` ✅ 구현 — 영수증 읽기 (BP-EX-002)
+
+`multipart/form-data`의 `image`(JPG · PNG, 10MB 이하). 여행 멤버만.
+서버가 Gemini(무료 등급)에 사진을 보내 읽고 결과만 돌려준다. **사진은 저장하지 않는다.**
+무료 등급은 보낸 내용이 구글 제품 개선에 쓰일 수 있다.
+
+`200 OK`
+
+```json
+{
+  "store": "セブン-イレブン Kiosk高松駅店",
+  "storeKo": "세븐일레븐 키오스크 다카마쓰역점",
+  "date": "2026-03-08",
+  "time": "20:40",
+  "currency": "JPY",
+  "items": [
+    { "name": "7P蒙古タンメン中本辛旨味噌", "nameKo": "몽고탄멘 나카모토 매운 된장 컵라면", "qty": 3, "unitPrice": 240, "amount": 720, "unclear": false },
+    { "name": "チキン南蛮", "nameKo": "치킨 난반", "qty": 1, "unitPrice": 298, "amount": 298, "unclear": false }
+  ],
+  "subtotal": 2799,
+  "tax": 223,
+  "taxIncluded": false,
+  "total": 3022
+}
+```
+
+- 금액은 영수증 통화(`currency`) 기준이고 그 통화의 소수 자리로 반올림한다 (엔 · 원은 정수)
+- `storeKo` · `nameKo`: 한국어가 아닌 이름의 한국어 번역. 이미 한국어면 `null`
+- `"*298"` 같은 세율 표시는 수량이 아니다. `"@240x 3"`처럼 윗줄 항목의 단가 × 수량도 읽는다
+- 할인 줄은 바로 위 항목 금액에서 뺀다. 0원 줄은 뺀다
+- `taxIncluded: false`(일본 외세)면 항목 합계 + `tax` = `total`이다. 앱은 `tax`를 "세금" 항목으로 넣는다
+- `unclear: true`: 글자가 흐려 확인이 필요한 줄
+
+에러 — 앱은 아래 오류를 받으면 기기 안 OCR(ML Kit) 결과를 대신 쓴다
+
+| 코드 | 상황 |
+|---|---|
+| `400 INVALID_IMAGE` | JPG · PNG가 아님 |
+| `413 PAYLOAD_TOO_LARGE` | 10MB 초과 |
+| `422 RECEIPT_UNREADABLE` | 영수증이 아니거나 총액을 못 읽음 |
+| `503 RECEIPT_AI_UNAVAILABLE` | 서버에 `GEMINI_API_KEY`가 없음 |
+| `503 RECEIPT_AI_FAILED` | Gemini가 25초 안에 답하지 않거나 답이 형식에 맞지 않음 |
 
 ---
 
