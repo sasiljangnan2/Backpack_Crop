@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/app_dependencies.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../expense/presentation/expense_list_screen.dart';
+import '../../settlement/data/preview_settlement_repository.dart';
+import '../../settlement/data/settlement_repository.dart';
+import '../../settlement/presentation/settlement_screen.dart';
+import '../../settlement/presentation/settlement_strings.dart';
 import '../data/trip_repository.dart';
 import 'trip_expense_previews.dart';
 import 'trip_strings.dart';
@@ -77,6 +82,36 @@ class _TripOverviewScreenState extends State<TripOverviewScreen> {
     }
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text(TripStrings.copied)));
+  }
+
+  Future<void> _settlement(TripDetail trip) async {
+    final expenses = widget.isPreview
+        ? widget.expensePreviews.forTrip(trip, _members)
+        : null;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SettlementScreen(
+          tripName: trip.name,
+          currentMemberId: trip.myMemberId,
+          isPreview: widget.isPreview,
+          repository: expenses != null
+              ? PreviewSettlementRepository(expenses)
+              : ApiSettlementRepository(AppScope.of(context).api, trip.id),
+          onViewExpenses:
+              expenses == null || !['JPY', 'KRW'].contains(trip.currencyCode)
+              ? null
+              : () async {
+                  await Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ExpenseListScreen(repository: expenses),
+                    ),
+                  );
+                },
+        ),
+      ),
+    );
   }
 
   @override
@@ -215,6 +250,13 @@ class _TripOverviewScreenState extends State<TripOverviewScreen> {
                         ),
                   icon: const Icon(Icons.account_balance_wallet_outlined),
                   label: const Text(TripStrings.expenses),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const ValueKey('settlement-open'),
+                  onPressed: () => _settlement(trip),
+                  icon: const Icon(Icons.swap_horiz),
+                  label: const Text(SettlementStrings.open),
                 ),
                 const SizedBox(height: 10),
                 Text(
