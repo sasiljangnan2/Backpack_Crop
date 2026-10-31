@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../expense_strings.dart';
 
 class ExpenseSummaryCard extends StatelessWidget {
@@ -35,9 +36,8 @@ class ExpenseSummaryCard extends StatelessWidget {
           child: Text(
             ExpenseStrings.krw(totalKrw),
             key: const ValueKey('expense-total'),
-            style: const TextStyle(
+            style: AppTypography.money.copyWith(
               fontSize: 32,
-              fontWeight: FontWeight.w800,
               color: Colors.white,
             ),
           ),
@@ -58,21 +58,28 @@ class ExpenseSummaryCard extends StatelessWidget {
           padding: EdgeInsets.symmetric(vertical: 12),
           child: Divider(color: Colors.white24),
         ),
-        Row(
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 8,
           children: [
-            const Expanded(
-              child: Text(
-                ExpenseStrings.myShare,
-                style: TextStyle(color: Colors.white),
-              ),
+            const Text(
+              ExpenseStrings.myShare,
+              style: TextStyle(color: Colors.white),
             ),
-            Text(
-              ExpenseStrings.krw(myShareKrw),
-              key: const ValueKey('expense-my-share'),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                ExpenseStrings.krw(myShareKrw),
+                key: const ValueKey('expense-my-share'),
+                style: AppTypography.money.copyWith(
+                  color: Colors.white,
+                  fontSize: 20,
+                ),
+                maxLines: 1,
+                softWrap: false,
               ),
             ),
           ],
