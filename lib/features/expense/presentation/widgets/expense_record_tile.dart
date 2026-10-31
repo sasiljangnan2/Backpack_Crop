@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../data/expense_repository.dart';
 import '../../data/expense_request.dart';
 import '../expense_split_strings.dart';
@@ -83,36 +84,59 @@ class ExpenseRecordTile extends StatelessWidget {
                 spacing: 12,
                 runSpacing: 4,
                 children: [
-                  Text(
-                    ExpenseStrings.krw(expense.amountKrw),
-                    style: const TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w800,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      ExpenseStrings.krw(expense.amountKrw),
+                      style: AppTypography.money.copyWith(fontSize: 21),
+                      maxLines: 1,
+                      softWrap: false,
                     ),
                   ),
-                  Text(
-                    ExpenseSplitStrings.amount(
-                      expense.request.amountLocal ?? expense.amountKrw,
-                      expense.data.currencyCode,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      ExpenseSplitStrings.amount(
+                        expense.request.amountLocal ?? expense.amountKrw,
+                        expense.data.currencyCode,
+                      ),
+                      style: AppTypography.money.copyWith(
+                        color: AppColors.muted,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      maxLines: 1,
+                      softWrap: false,
                     ),
-                    style: const TextStyle(color: AppColors.muted),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 6,
                 children: [
-                  const Expanded(
-                    child: Text(
-                      ExpenseStrings.myShare,
-                      style: TextStyle(color: AppColors.muted, fontSize: 12),
-                    ),
+                  const Text(
+                    ExpenseStrings.myShare,
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
                   ),
-                  Text(
-                    ExpenseStrings.krw(expense.sharesKrw[currentMemberId] ?? 0),
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      ExpenseStrings.krw(
+                        expense.sharesKrw[currentMemberId] ?? 0,
+                      ),
+                      style: AppTypography.money.copyWith(
+                        color: AppColors.primary,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      softWrap: false,
                     ),
                   ),
                 ],

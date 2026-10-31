@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'core/app_dependencies.dart';
 import 'core/theme/app_colors.dart';
+import 'core/theme/app_theme.dart';
 import 'features/user/presentation/auth_controller.dart';
 import 'features/user/presentation/welcome_screen.dart';
 import 'features/trip/presentation/trip_list_screen.dart';
@@ -69,44 +70,7 @@ class _MyAppState extends State<MyApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        datePickerTheme: const DatePickerThemeData(
-          rangePickerHeaderHeadlineStyle: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        colorScheme: AppColors.scheme,
-        scaffoldBackgroundColor: Colors.white,
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          errorMaxLines: 3,
-          contentPadding: const EdgeInsets.all(16),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: AppColors.border),
-          ),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(54),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(54),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-        ),
-      ),
+      theme: AppTheme.light,
       home: ListenableBuilder(
         listenable: _dependencies.auth,
         builder: (context, child) => switch (_dependencies.auth.status) {
