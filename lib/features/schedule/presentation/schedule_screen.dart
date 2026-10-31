@@ -18,10 +18,12 @@ class ScheduleScreen extends StatefulWidget {
     required this.trip,
     required this.repository,
     this.isPreview = false,
+    this.isEmbedded = false,
   });
   final TripDetail trip;
   final ScheduleRepository repository;
   final bool isPreview;
+  final bool isEmbedded;
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
 }
@@ -160,6 +162,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     builder: (context, child) => Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        automaticallyImplyLeading: !widget.isEmbedded,
         toolbarHeight: 76,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

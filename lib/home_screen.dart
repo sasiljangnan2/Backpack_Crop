@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core/theme/app_colors.dart';
-import 'features/expense/presentation/expense_list_screen.dart';
 import 'features/expense/data/memory_expense_repository.dart';
+import 'features/expense/presentation/expense_list_screen.dart';
+import 'features/schedule/data/sample_home_schedule.dart';
+import 'features/schedule/presentation/schedule_screen.dart';
 
 const _primary = AppColors.primary;
 const _ink = AppColors.ink;
@@ -20,6 +22,7 @@ class TravelHomeScreen extends StatefulWidget {
 
 class _TravelHomeScreenState extends State<TravelHomeScreen> {
   final _expenseRepository = MemoryExpenseRepository();
+  final _schedulePreview = SampleHomeSchedule();
   int _tab = 0;
   bool _replanned = false;
   bool _recorded = false;
@@ -209,14 +212,27 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
           body: SafeArea(
             top: _tab != 0,
             bottom: false,
-            child: _tab == 0
-                ? _home()
-                : _tab == 2
-                ? ExpenseListScreen(
+            child: IndexedStack(
+              index: _tab,
+              children: [
+                _home(),
+                ScaffoldMessenger(
+                  child: ScheduleScreen(
+                    trip: _schedulePreview.trip,
+                    repository: _schedulePreview.repository,
+                    isPreview: true,
+                    isEmbedded: true,
+                  ),
+                ),
+                ScaffoldMessenger(
+                  child: ExpenseListScreen(
                     repository: _expenseRepository,
                     isEmbedded: true,
-                  )
-                : _section(),
+                  ),
+                ),
+                _section(),
+              ],
+            ),
           ),
           bottomNavigationBar: NavigationBar(
             height: 72,
@@ -760,34 +776,6 @@ class _TravelHomeScreenState extends State<TravelHomeScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            if (_tab == 1) ...[
-              const Text(
-                'DAY 2 · 10.03 토 · 맑음 23°',
-                style: TextStyle(color: _primary, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 16),
-              _card(
-                Column(
-                  children: [
-                    _event('✓', '09:30', '오사카성 공원', '완료'),
-                    _event('✓', '12:00', '이치란 라멘 난바점', '완료'),
-                    _event(
-                      '3',
-                      '14:15',
-                      '구로몬 시장',
-                      _recorded ? '활동 완료' : '현재 활동',
-                    ),
-                    _event(
-                      '5',
-                      _replanned ? '15:15' : '15:00',
-                      '신사이바시 쇼핑',
-                      '쇼핑',
-                    ),
-                    _event('⌑', '17:30', '우메다 스카이빌딩', '예약 확정', locked: true),
-                  ],
-                ),
-              ),
-            ],
             if (_tab == 3)
               _card(
                 Column(

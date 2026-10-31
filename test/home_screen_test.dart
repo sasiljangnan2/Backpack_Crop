@@ -36,7 +36,8 @@ void main() {
     }
 
     await tab('일정');
-    expect(find.text('15:15'), findsOneWidget);
+    expect(find.byKey(const ValueKey('schedule-add')), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
     await tab('경비');
     expect(find.text('여행 공동 지출'), findsOneWidget);
     await tab('준비');
