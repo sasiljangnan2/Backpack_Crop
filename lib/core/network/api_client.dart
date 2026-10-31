@@ -21,6 +21,12 @@ class ApiClient {
   Future<void>? _refreshing;
   VoidCallback? onSessionExpired;
 
+  Future<Object?> patch(String path, {Object? body}) =>
+      _send('PATCH', path, body: body);
+  Future<void> delete(String path) async {
+    await _send('DELETE', path);
+  }
+
   Future<Object?> get(String path) => _send('GET', path);
   Future<Object?> post(String path, {Object? body, bool hasAuth = true}) =>
       _send('POST', path, body: body, hasAuth: hasAuth);

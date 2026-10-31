@@ -5,6 +5,10 @@ import '../../../core/app_dependencies.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../expense/presentation/expense_list_screen.dart';
+import '../../schedule/data/schedule_repository.dart';
+import '../../schedule/presentation/schedule_previews.dart';
+import '../../schedule/presentation/schedule_screen.dart';
+import '../../schedule/presentation/schedule_strings.dart';
 import '../../settlement/data/preview_settlement_repository.dart';
 import '../../settlement/data/settlement_repository.dart';
 import '../../settlement/presentation/settlement_screen.dart';
@@ -20,6 +24,7 @@ class TripOverviewScreen extends StatefulWidget {
     required this.repository,
     required this.expensePreviews,
     this.initial,
+    this.schedulePreviews,
     this.isPreview = false,
   });
   final String tripId;
@@ -27,6 +32,7 @@ class TripOverviewScreen extends StatefulWidget {
   final TripRepository repository;
   final TripExpensePreviews expensePreviews;
   final TripDetail? initial;
+  final SchedulePreviews? schedulePreviews;
   @override
   State<TripOverviewScreen> createState() => _TripOverviewScreenState();
 }
@@ -34,6 +40,8 @@ class TripOverviewScreen extends StatefulWidget {
 class _TripOverviewScreenState extends State<TripOverviewScreen> {
   TripDetail? _trip;
   List<TripMember> _members = [];
+  late final SchedulePreviews _schedulePreviews =
+      widget.schedulePreviews ?? SchedulePreviews();
   bool _isLoading = true;
   String? _error;
   @override
@@ -170,6 +178,27 @@ class _TripOverviewScreenState extends State<TripOverviewScreen> {
                   style: const TextStyle(color: AppColors.muted, fontSize: 13),
                 ),
                 const SizedBox(height: 24),
+                FilledButton.icon(
+                  key: const ValueKey('schedule-open'),
+                  onPressed: () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ScheduleScreen(
+                        trip: trip,
+                        isPreview: widget.isPreview,
+                        repository: widget.isPreview
+                            ? _schedulePreviews.forTrip(trip, _members)
+                            : ApiScheduleRepository(
+                                AppScope.of(context).api,
+                                trip.id,
+                              ),
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.calendar_month_outlined),
+                  label: const Text(ScheduleStrings.open),
+                ),
+                const SizedBox(height: 20),
                 Card(
                   elevation: 0,
                   color: AppColors.primarySoft,
@@ -234,7 +263,7 @@ class _TripOverviewScreenState extends State<TripOverviewScreen> {
                     ),
                   ),
                 const SizedBox(height: 24),
-                FilledButton.icon(
+                OutlinedButton.icon(
                   onPressed: !canPreview
                       ? null
                       : () => Navigator.push<void>(
