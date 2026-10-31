@@ -7,6 +7,7 @@ abstract final class AppTheme {
   static ThemeData get light => ThemeData(
     useMaterial3: true,
     fontFamily: AppTypography.fontFamily,
+    appBarTheme: const AppBarTheme(titleTextStyle: AppTypography.screenTitle),
     datePickerTheme: const DatePickerThemeData(
       rangePickerHeaderHeadlineStyle: TextStyle(
         fontSize: 16,

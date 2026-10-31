@@ -44,6 +44,15 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(NavigationDestination, '경비'));
       await tester.pumpAndSettle();
+      final titleStyle = tester
+          .renderObject<RenderParagraph>(
+            find.byKey(const ValueKey('expense-screen-title')),
+          )
+          .text
+          .style!;
+      expect(titleStyle.fontFamily, AppTypography.fontFamily);
+      expect(titleStyle.fontSize, 20);
+      expect(titleStyle.fontWeight, FontWeight.w800);
       for (final key in ['expense-total', 'expense-my-share']) {
         final paragraph = tester.renderObject<RenderParagraph>(
           find.byKey(ValueKey(key)),
@@ -59,6 +68,20 @@ void main() {
         tester.widget<Text>(find.byKey(const ValueKey('expense-total'))).data,
         '₩162,316',
       );
+      await tester.tap(find.widgetWithText(NavigationDestination, '일정'));
+      await tester.pumpAndSettle();
+      final scheduleTitle = tester
+          .renderObject<RenderParagraph>(
+            find.descendant(
+              of: find.byType(AppBar),
+              matching: find.text('여행 일정'),
+            ),
+          )
+          .text
+          .style!;
+      expect(scheduleTitle.fontFamily, titleStyle.fontFamily);
+      expect(scheduleTitle.fontSize, titleStyle.fontSize);
+      expect(scheduleTitle.fontWeight, titleStyle.fontWeight);
       expect(tester.takeException(), isNull);
     },
   );

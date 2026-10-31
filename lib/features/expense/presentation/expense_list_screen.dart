@@ -107,7 +107,10 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
         backgroundColor: AppColors.background,
         appBar: AppBar(
           automaticallyImplyLeading: !widget.isEmbedded,
-          title: const Text(ExpenseStrings.title),
+          title: const Text(
+            ExpenseStrings.title,
+            key: ValueKey('expense-screen-title'),
+          ),
           actions: [
             if (trip != null)
               Padding(
