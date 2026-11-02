@@ -66,6 +66,24 @@ make_swap() {
 	swapon /swapfile
 }
 
+# 클라우드 VM에 필요 없는 상주 프로그램을 끈다. 메모리 1GB 서버(NCP Micro)에서 펌웨어 업데이트 데몬(fwupd)이
+# 170MB를 차지해 MySQL · 서버가 스왑으로 밀려나고, 디스크 대기가 97%까지 올라 앱 전체가 느려졌다
+for unit in fwupd.service fwupd-refresh.timer; do
+	if systemctl list-unit-files "$unit" >/dev/null 2>&1; then
+		systemctl disable --now "$unit" >/dev/null 2>&1 || true
+		systemctl mask "$unit" >/dev/null 2>&1 || true
+	fi
+done
+# multipathd는 여러 경로로 붙는 저장 장치용이다. 그런 장치가 없을 때만 끈다 (/dev/vda 같은 가상 디스크)
+if systemctl list-unit-files multipathd.service >/dev/null 2>&1 && ! lsblk -no TYPE 2>/dev/null | grep -q mpath; then
+	systemctl disable --now multipathd.service multipathd.socket >/dev/null 2>&1 || true
+fi
+# 메모리가 모자랄 때 프로그램(DB · 서버)보다 파일 캐시를 먼저 비우게 한다
+if [ "$mem_mb" -lt 2048 ]; then
+	echo 'vm.swappiness=10' > /etc/sysctl.d/99-backpack.conf
+	sysctl -q -p /etc/sysctl.d/99-backpack.conf || true
+fi
+
 # 지워도 되는 것만 지운다: 지난 배포의 서버 이미지 · 빌드 캐시, 패키지 캐시, 오래된 시스템 로그, 안 쓰는 snap 판
 docker builder prune -af >/dev/null 2>&1 || true
 docker image prune -f >/dev/null 2>&1 || true
@@ -82,16 +100,24 @@ need_mb=500
 if ! docker image inspect mysql:8.4 >/dev/null 2>&1; then
 	need_mb=1500
 fi
-# 예전 설치가 만든 큰 스왑이 자리를 차지하면 줄인다. 스왑에 든 내용을 메모리로 옮길 수 있을 때만
-if [ -f /swapfile ] && [ "$(free_mb)" -lt "$need_mb" ]; then
+# 예전 설치가 만든 큰 스왑(2GB)은 작은 디스크에서 줄인다. 스왑에 든 내용을 메모리로 옮겨야 하므로,
+# 메모리가 모자라면 컨테이너를 잠깐 멈춘다 (아래 4/5에서 다시 띄운다)
+if [ -f /swapfile ]; then
 	swap_file_mb=$(($(stat -c %s /swapfile) / 1024 / 1024))
-	swap_used_mb=$(free -m | awk '/^Swap:/ { print $3 }')
-	mem_avail_mb=$(awk '/MemAvailable/ { print int($2 / 1024) }' /proc/meminfo)
-	if [ "$swap_file_mb" -gt "$swap_mb" ] && [ $((swap_used_mb + 150)) -lt "$mem_avail_mb" ]; then
+	if [ "$swap_file_mb" -gt $((swap_mb + 64)) ]; then
+		swap_used_mb=$(free -m | awk '/^Swap:/ { print $3 }')
+		mem_avail_mb=$(awk '/MemAvailable/ { print int($2 / 1024) }' /proc/meminfo)
+		if [ $((swap_used_mb + 150)) -ge "$mem_avail_mb" ] && [ -f .env ]; then
+			echo "스왑을 줄이려고 서버를 잠깐 멈춰요"
+			docker compose stop >/dev/null 2>&1 || true
+		fi
 		echo "스왑을 ${swap_file_mb}MB에서 ${swap_mb}MB로 줄여 디스크 자리를 만들어요"
-		swapoff /swapfile
-		rm -f /swapfile
-		make_swap
+		if swapoff /swapfile; then
+			rm -f /swapfile
+			make_swap
+		else
+			echo "스왑을 줄이지 못했어요 (메모리 부족). 그대로 둬요" >&2
+		fi
 	fi
 fi
 if [ "$mem_mb" -lt 2048 ] && [ ! -f /swapfile ]; then
@@ -177,7 +203,9 @@ for attempt in 1 2 3; do
 	sleep 5
 done
 docker compose up -d --build --remove-orphans
+# 지난 서버 이미지와 빌드 캐시(약 0.5GB)를 지운다. 다음 배포는 새 jar로 다시 빌드하므로 필요 없다
 docker image prune -f >/dev/null
+docker builder prune -af >/dev/null 2>&1 || true
 
 # 매일 한국 시간 새벽 4시(UTC 19시)에 DB를 백업한다 (backup.sh)
 cat > /etc/cron.d/backpack-backup <<EOF
