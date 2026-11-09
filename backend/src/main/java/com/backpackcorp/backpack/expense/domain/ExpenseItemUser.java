@@ -2,6 +2,8 @@ package com.backpackcorp.backpack.expense.domain;
 
 import java.math.BigDecimal;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.springframework.data.domain.Persistable;
 
 import com.backpackcorp.backpack.trip.domain.TripMember;
@@ -40,11 +42,13 @@ public class ExpenseItemUser implements Persistable<ExpenseItemUserId> {
 
 	@MapsId("itemId")
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "item_id", nullable = false)
 	private ExpenseItem item;
 
 	@MapsId("memberId")
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "member_id", nullable = false)
 	private TripMember member;
 

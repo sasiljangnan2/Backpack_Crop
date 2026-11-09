@@ -1,67 +1,73 @@
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-import 'core/app_dependencies.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+
+import 'core/app_services.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
-import 'features/user/presentation/auth_controller.dart';
-import 'features/user/presentation/welcome_screen.dart';
+import 'features/auth/presentation/welcome_screen.dart';
+import 'features/notification/presentation/notification_navigator.dart';
 import 'features/trip/presentation/trip_list_screen.dart';
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key, this.dependencies});
-  final AppDependencies? dependencies;
+/// 앱 루트. 로그인 상태에 따라 시작 화면과 여행 목록을 바꿔 보여 준다.
+class BackpackApp extends StatefulWidget {
+  const BackpackApp({super.key});
+
+  static final navigatorKey = GlobalKey<NavigatorState>();
+
   @override
-  State<MyApp> createState() => _MyAppState();
+  State<BackpackApp> createState() => _BackpackAppState();
 }
 
-class _MyAppState extends State<MyApp> {
-  late final AppDependencies _dependencies;
-  final _navigator = GlobalKey<NavigatorState>();
-  SessionStatus? _lastStatus;
+class _BackpackAppState extends State<BackpackApp> {
+  SessionState? _last;
+  StreamSubscription<Map<String, dynamic>>? _pushOpened;
 
   @override
   void initState() {
     super.initState();
-    _dependencies = widget.dependencies ?? AppDependencies.create();
-    _dependencies.auth.addListener(_onSessionChanged);
-    _dependencies.auth.restore();
-  }
-
-  void _onSessionChanged() {
-    final auth = _dependencies.auth;
-    if (_lastStatus == auth.status) {
-      return;
-    }
-    _lastStatus = auth.status;
-    _navigator.currentState?.popUntil((route) => route.isFirst);
-    final notice = auth.notice;
-    if (auth.status == SessionStatus.signedOut && notice != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final context = _navigator.currentContext;
-        if (mounted && context != null) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(notice)));
-        }
-      });
-    }
+    services.auth.addListener(_onAuthChanged);
+    _pushOpened = services.push.opened.listen(_openFromPush);
   }
 
   @override
   void dispose() {
-    _dependencies.auth.removeListener(_onSessionChanged);
-    if (widget.dependencies == null) {
-      _dependencies.dispose();
-    }
+    services.auth.removeListener(_onAuthChanged);
+    _pushOpened?.cancel();
     super.dispose();
   }
 
+  // 로그아웃 · 세션 만료 때 쌓여 있던 화면을 모두 닫는다
+  void _onAuthChanged() {
+    final state = services.auth.state;
+    if (_last != state) {
+      _last = state;
+      BackpackApp.navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    }
+  }
+
+  void _openFromPush(Map<String, dynamic> data) {
+    final navigator = BackpackApp.navigatorKey.currentState;
+    final tripId = data['tripId'] as String?;
+    if (navigator == null || tripId == null) {
+      return;
+    }
+    openNotificationTarget(
+      navigator,
+      tripId: tripId,
+      refType: data['refType'] as String?,
+      refId: data['refId'] as String?,
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => AppScope(
-    dependencies: _dependencies,
-    child: MaterialApp(
-      navigatorKey: _navigator,
+  Widget build(BuildContext context) {
+    return MaterialApp(
       title: 'Backpack',
+      navigatorKey: BackpackApp.navigatorKey,
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
       locale: const Locale('ko', 'KR'),
       supportedLocales: const [Locale('ko', 'KR')],
       localizationsDelegates: const [
@@ -69,33 +75,40 @@ class _MyAppState extends State<MyApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
       home: ListenableBuilder(
-        listenable: _dependencies.auth,
-        builder: (context, child) => switch (_dependencies.auth.status) {
-          SessionStatus.restoring => const Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.backpack_outlined,
-                    size: 56,
-                    color: AppColors.primary,
-                  ),
-                  SizedBox(height: 16),
-                  Text('Backpack'),
-                ],
-              ),
-            ),
-          ),
-          SessionStatus.signedOut => const WelcomeScreen(),
-          SessionStatus.signedIn => TripListScreen(
-            repository: _dependencies.trips,
-          ),
+        listenable: services.auth,
+        builder: (context, _) => switch (services.auth.state) {
+          SessionState.loading => const _Splash(),
+          SessionState.signedOut => const WelcomeScreen(),
+          SessionState.signedIn => const TripListScreen(),
         },
       ),
-    ),
-  );
+    );
+  }
+}
+
+class _Splash extends StatelessWidget {
+  const _Splash();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: const Icon(
+            Icons.backpack_outlined,
+            size: 40,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
 }

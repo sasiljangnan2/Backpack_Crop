@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Locale;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.WebApplicationContext;
 
+import com.backpackcorp.backpack.global.security.TokenService;
+import com.backpackcorp.backpack.user.domain.Role;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -33,6 +37,8 @@ class ValidationMessageLocaleTest {
 
 	@Autowired
 	private WebApplicationContext context;
+	@Autowired
+	private TokenService tokenService;
 
 	@AfterEach
 	void tearDown() {
@@ -46,6 +52,8 @@ class ValidationMessageLocaleTest {
 
 		MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build()
 			.perform(post("/test/names").header(HttpHeaders.ACCEPT_LANGUAGE, "en-US")
+				.header(HttpHeaders.AUTHORIZATION,
+					"Bearer " + tokenService.createAccessToken(UUID.randomUUID(), Role.USER))
 				.contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.details.name").value("공백일 수 없습니다"));

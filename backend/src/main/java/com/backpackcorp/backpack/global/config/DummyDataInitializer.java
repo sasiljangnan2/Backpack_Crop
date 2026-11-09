@@ -72,7 +72,8 @@ public class DummyDataInitializer implements ApplicationRunner {
 		// 어제 출발해 모레 돌아오는 여행
 		LocalDate firstDay = LocalDate.now().minusDays(1);
 		Trip trip = save(Trip.builder().name("오사카 먹방 여행").destination("일본 오사카")
-			.startDate(firstDay).endDate(firstDay.plusDays(3)).currencyCode("JPY").inviteCode("OSAKA001").build());
+			.startDate(firstDay).endDate(firstDay.plusDays(3)).currencyCode("JPY").timeZone("Asia/Tokyo")
+			.inviteCode("OSAKA001").build());
 		TripMember host = save(TripMember.builder().trip(trip).user(hostUser).role(TripMemberRole.HOST).build());
 		TripMember member = save(TripMember.builder().trip(trip).user(memberUser).role(TripMemberRole.MEMBER)
 			.prepaidRate(new BigDecimal("8.900000")).build());
@@ -102,6 +103,7 @@ public class DummyDataInitializer implements ApplicationRunner {
 
 		BigDecimal rate = new BigDecimal("9.050000");
 		save(ExchangeRate.builder().currencyCode("JPY").rateDate(firstDay).rateToKrw(rate).build());
+		// 오늘 환율은 넣지 않는다. 앱이 쓰면 ExchangeRateCollector가 실제 환율을 가져온다
 		save(BudgetItem.builder().trip(trip).category(ExpenseCategory.FOOD).name("식비")
 			.amount(new BigDecimal("30000.00")).currencyCode("JPY").build());
 		save(BudgetItem.builder().trip(trip).category(ExpenseCategory.LODGING).name("숙소")

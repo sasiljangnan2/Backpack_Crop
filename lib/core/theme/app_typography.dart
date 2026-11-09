@@ -14,6 +14,7 @@ abstract final class AppTypography {
     color: AppColors.ink,
   );
   static const TextStyle money = TextStyle(
+    fontFamily: fontFamily,
     fontWeight: FontWeight.w700,
     fontFeatures: [FontFeature.tabularFigures()],
   );

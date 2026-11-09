@@ -82,6 +82,11 @@ public class ImageStorage {
 		}
 	}
 
+	// 저장하지 않고 형식만 볼 때 (영수증 읽기). image/jpeg · image/png, 아니면 INVALID_IMAGE
+	public static String mimeTypeOf(MultipartFile image) {
+		return "jpg".equals(detectExtension(image)) ? "image/jpeg" : "image/png";
+	}
+
 	// 파일명과 Content-Type은 보내는 쪽이 마음대로 정할 수 있으므로 믿지 않고, 파일 내용을 읽어 형식을 판별한다
 	private static String detectExtension(MultipartFile image) {
 		String extension = image == null ? null : readExtension(image);

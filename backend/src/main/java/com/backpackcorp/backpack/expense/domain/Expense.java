@@ -3,6 +3,9 @@ package com.backpackcorp.backpack.expense.domain;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import com.backpackcorp.backpack.global.entity.BaseTimeEntity;
 import com.backpackcorp.backpack.trip.domain.Trip;
 import com.backpackcorp.backpack.trip.domain.TripMember;
@@ -29,21 +32,28 @@ import lombok.NoArgsConstructor;
 public class Expense extends BaseTimeEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "trip_id", nullable = false)
 	private Trip trip;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "payer_member_id", nullable = false)
 	private TripMember payer;
 
 	// payer와 다르면 대리 입력
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "creator_member_id", nullable = false)
 	private TripMember creator;
 
 	// 가게명 등
 	@Column(nullable = false, length = 100)
 	private String title;
+
+	// 외국어 영수증에서 읽은 가게 이름의 한국어 번역. 없으면 null
+	@Column(length = 100)
+	private String titleKo;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
@@ -82,7 +92,7 @@ public class Expense extends BaseTimeEntity {
 	private int version;
 
 	@Builder
-	private Expense(Trip trip, TripMember payer, TripMember creator, String title,
+	private Expense(Trip trip, TripMember payer, TripMember creator, String title, String titleKo,
 		ExpenseCategory category,
 		LocalDate paidDate, BigDecimal amountLocal, RateMode rateMode, BigDecimal appliedRate, LocalDate rateDate,
 		BigDecimal amountKrw, SplitMethod splitMethod) {
@@ -90,6 +100,7 @@ public class Expense extends BaseTimeEntity {
 		this.payer = payer;
 		this.creator = creator;
 		this.title = title;
+		this.titleKo = titleKo;
 		this.category = category;
 		this.paidDate = paidDate;
 		this.amountLocal = amountLocal;
@@ -98,5 +109,20 @@ public class Expense extends BaseTimeEntity {
 		this.rateDate = rateDate;
 		this.amountKrw = amountKrw;
 		this.splitMethod = splitMethod;
+	}
+
+	// 수정은 전체 교체다. 작성자(creator)와 여행은 바뀌지 않는다
+	public void replaceWith(Expense source) {
+		this.payer = source.payer;
+		this.title = source.title;
+		this.titleKo = source.titleKo;
+		this.category = source.category;
+		this.paidDate = source.paidDate;
+		this.amountLocal = source.amountLocal;
+		this.rateMode = source.rateMode;
+		this.appliedRate = source.appliedRate;
+		this.rateDate = source.rateDate;
+		this.amountKrw = source.amountKrw;
+		this.splitMethod = source.splitMethod;
 	}
 }

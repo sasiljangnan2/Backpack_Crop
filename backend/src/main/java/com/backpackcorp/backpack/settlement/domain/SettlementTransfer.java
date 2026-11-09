@@ -2,6 +2,9 @@ package com.backpackcorp.backpack.settlement.domain;
 
 import java.math.BigDecimal;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import com.backpackcorp.backpack.global.entity.BaseEntity;
 import com.backpackcorp.backpack.trip.domain.TripMember;
 
@@ -24,15 +27,18 @@ import lombok.NoArgsConstructor;
 public class SettlementTransfer extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "share_id", nullable = false)
 	private SettlementShare share;
 
 	// 보내는 사람과 받는 사람은 달라야 한다 (애플리케이션에서 검증)
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "from_member_id", nullable = false)
 	private TripMember fromMember;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "to_member_id", nullable = false)
 	private TripMember toMember;
 

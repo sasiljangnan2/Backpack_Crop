@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>backpack</string>
+	<string>Backpack</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>일정 지도에 내 위치를 보여 주고, 일정을 다시 짤 때 지금 있는 곳을 알아보는 데 써요.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>영수증을 찍어 지출 항목과 금액을 읽어요.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>앨범에 있는 영수증 사진을 골라 지출 항목과 금액을 읽어요.</string>
 </dict>
 </plist>
