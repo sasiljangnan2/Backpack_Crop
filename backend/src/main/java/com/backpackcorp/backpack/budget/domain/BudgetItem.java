@@ -2,6 +2,8 @@ package com.backpackcorp.backpack.budget.domain;
 
 import java.math.BigDecimal;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -30,6 +32,7 @@ import lombok.NoArgsConstructor;
 public class BudgetItem extends BaseCreatedEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "trip_id", nullable = false)
 	private Trip trip;
 
@@ -51,6 +54,13 @@ public class BudgetItem extends BaseCreatedEntity {
 	@Builder
 	private BudgetItem(Trip trip, ExpenseCategory category, String name, BigDecimal amount, String currencyCode) {
 		this.trip = trip;
+		this.category = category;
+		this.name = name;
+		this.amount = amount;
+		this.currencyCode = currencyCode;
+	}
+
+	public void update(ExpenseCategory category, String name, BigDecimal amount, String currencyCode) {
 		this.category = category;
 		this.name = name;
 		this.amount = amount;

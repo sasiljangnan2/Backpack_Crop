@@ -54,4 +54,36 @@ public class User extends BaseTimeEntity {
 		this.name = name;
 		this.role = role != null ? role : Role.USER;
 	}
+
+	public boolean isDeleted() {
+		return deletedAt != null;
+	}
+
+	public void changeName(String name) {
+		this.name = name;
+	}
+
+	public void changePasswordHash(String passwordHash) {
+		this.passwordHash = passwordHash;
+	}
+
+	// null인 값은 그대로 둔다
+	public void changeNotificationSettings(Boolean schedule, Boolean expense, Boolean settlement) {
+		if (schedule != null) {
+			this.notifySchedule = schedule;
+		}
+		if (expense != null) {
+			this.notifyExpense = expense;
+		}
+		if (settlement != null) {
+			this.notifySettlement = settlement;
+		}
+	}
+
+	// 같은 이메일로 다시 가입할 수 있도록 이메일을 익명화하고, 비밀번호로 로그인할 수 없게 한다
+	public void withdraw(Instant now, String anonymizedEmail, String unusablePasswordHash) {
+		this.deletedAt = now;
+		this.email = anonymizedEmail;
+		this.passwordHash = unusablePasswordHash;
+	}
 }

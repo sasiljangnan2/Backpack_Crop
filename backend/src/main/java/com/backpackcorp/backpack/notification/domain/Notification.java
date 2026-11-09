@@ -2,6 +2,9 @@ package com.backpackcorp.backpack.notification.domain;
 
 import java.util.UUID;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import com.backpackcorp.backpack.global.entity.BaseCreatedEntity;
 import com.backpackcorp.backpack.trip.domain.TripMember;
 import com.backpackcorp.backpack.user.domain.User;
@@ -28,10 +31,12 @@ public class Notification extends BaseCreatedEntity {
 
 	// user(회원 수신자) / member(게스트 수신자) 중 정확히 하나만 값이 있어야 한다 (애플리케이션에서 검증)
 	@ManyToOne(fetch = FetchType.LAZY)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "user_id")
 	private User user;
 
 	@ManyToOne(fetch = FetchType.LAZY)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "member_id")
 	private TripMember member;
 
@@ -71,5 +76,9 @@ public class Notification extends BaseCreatedEntity {
 		this.message = message;
 		this.refType = refType;
 		this.refId = refId;
+	}
+
+	public void markRead() {
+		this.read = true;
 	}
 }

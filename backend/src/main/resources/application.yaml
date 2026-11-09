@@ -67,6 +67,53 @@ firebase:
   # FCM 서비스 계정 키(JSON) 파일 경로. 비워 두면 푸시 발송이 꺼진다
   credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
 
+# 환율 수집 (budget.service.rate). 저장한 값은 exchange_rates에 쌓이고 다시 바뀌지 않는다
+exchange-rate:
+  # false면 외부 API를 부르지 않고 DB에 있는 값만 쓴다 (테스트·오프라인 개발)
+  fetch-enabled: ${EXCHANGE_RATE_FETCH_ENABLED:true}
+  # 한국수출입은행 인증키. 있으면 가장 먼저 쓰고, 없으면 ECB(frankfurter) → open.er-api 순서로 쓴다
+  exim-api-key: ${EXIM_API_KEY:}
+  # 미리 받아 둘 통화 (여행에 쓰이는 통화는 자동으로 더한다)
+  default-currencies: JPY,USD,EUR,CNY,TWD,HKD,THB,VND,SGD,PHP,GBP,AUD
+  # 한국 시간 기준 2시간마다 20분에
+  collect-cron: "0 20 */2 * * *"
+
+# 지도 · 장소 · 이동 시간 (OpenStreetMap 기반 무료 공용 서버, 키 없음). place.service.OsmClient 참고
+map:
+  nominatim-url: ${MAP_NOMINATIM_URL:https://nominatim.openstreetmap.org}
+  osrm-foot-url: ${MAP_OSRM_FOOT_URL:https://routing.openstreetmap.de/routed-foot}
+  # 공용 서버 사용 정책: 어떤 앱이 부르는지 알 수 있게 한다
+  user-agent: ${MAP_USER_AGENT:Backpack/1.0 (+https://github.com/sasiljangnan2/Backpack_Crop)}
+  # false면 외부 서버를 부르지 않고 직선거리 어림값만 쓴다 (테스트 · 오프라인 개발)
+  fetch-enabled: ${MAP_FETCH_ENABLED:true}
+
+# Google Maps Platform 서버 키 (Places API (New) · Routes API). 있으면 장소 검색 · 이동 시간을 구글로 하고,
+# 없거나 실패하면 위의 OpenStreetMap으로 대신한다. 결제 계정이 필요하다 (docs/google-maps.md)
+google:
+  maps:
+    api-key: ${GOOGLE_MAPS_API_KEY:}
+
+# AI 일정 재구성 (BP-AI-002 · 003). 키가 없거나 응답이 늦으면 규칙 기반 추천으로 대신한다
+ai:
+  gemini:
+    # Google AI Studio에서 무료로 받는 키 (https://aistudio.google.com/apikey)
+    api-key: ${GEMINI_API_KEY:}
+    # 아래 모델들에 한꺼번에 묻고 가장 먼저 온 답을 쓴다 (모두 무료 등급이 있다).
+    # 무료 등급에서 재 보니(2026-10) 같은 모델도 3초 만에 답하거나, 붐빈다며(503) 거절하거나, 40초가 넘게 걸렸다
+    model: ${GEMINI_MODEL:gemini-3.6-flash}
+    fallback-models: ${GEMINI_FALLBACK_MODELS:gemini-3.5-flash-lite,gemini-3.8-flash}
+    url: ${GEMINI_URL:https://generativelanguage.googleapis.com/v1beta}
+    # Gemini 답을 기다리는 시간. 넘으면 규칙 기반 추천으로 답한다
+    timeout: 25s
+  # 재구성 요청에서 AI(Gemini + 새 장소 찾기)를 기다리는 최대 시간 (앱은 45초까지 기다린다)
+  replan-timeout: 30s
+
+app:
+  demo:
+    # 시연용 고정 시각 (ISO-8601 UTC, 예: 2026-10-03T05:50:00Z = 도쿄 14:50). 비워 두면 실제 시각
+    # 운영에서는 설정하지 않는다
+    now: ${APP_DEMO_NOW:}
+
 jwt:
   # 어떤 프로필에도 기본값을 두지 않는다. 없으면 기동 실패 (로컬은 .env에 설정, dev 프로필만 .env를 읽는다)
   secret: ${JWT_SECRET}

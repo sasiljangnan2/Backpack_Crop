@@ -5,5 +5,10 @@ public enum NotificationType {
 	SCHEDULE_CHANGED,
 	EXPENSE_ADDED,
 	SETTLEMENT_SHARED,
-	TRIP_DELETED
+	TRIP_DELETED,
+	// 아래는 V1 이후 추가 (컬럼에 CHECK 제약이 없어 마이그레이션 없이 쓸 수 있다)
+	POLL_CREATED,
+	POLL_CLOSED,
+	TASK_ASSIGNED,
+	MEMBER_JOINED
 }

@@ -1,5 +1,8 @@
 package com.backpackcorp.backpack.settlement.domain;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import com.backpackcorp.backpack.global.entity.BaseCreatedEntity;
 import com.backpackcorp.backpack.trip.domain.Trip;
 import com.backpackcorp.backpack.trip.domain.TripMember;
@@ -22,10 +25,12 @@ import lombok.NoArgsConstructor;
 public class SettlementShare extends BaseCreatedEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "trip_id", nullable = false)
 	private Trip trip;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "shared_by_member_id", nullable = false)
 	private TripMember sharedBy;
 

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 출시 빌드: 평문(http) 통신을 막는다. 서버는 반드시 HTTPS로 연다 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

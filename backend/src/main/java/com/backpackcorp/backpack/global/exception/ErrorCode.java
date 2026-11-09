@@ -26,9 +26,87 @@ public enum ErrorCode {
 
 	// 도메인별 에러 코드는 아래에 추가 (예: USER_NOT_FOUND(HttpStatus.NOT_FOUND, "..."))
 
+	// Auth · User
+	// 이메일이 없는지 비밀번호가 틀렸는지 구분하지 않는다 (가입 여부를 알려 주지 않는다)
+	INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
+	TOO_MANY_LOGIN_ATTEMPTS(HttpStatus.TOO_MANY_REQUESTS, "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요."),
+	EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 가입된 이메일입니다."),
+	INVALID_PASSWORD(HttpStatus.BAD_REQUEST, "현재 비밀번호가 올바르지 않습니다."),
+	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없습니다."),
+
 	// Trip
 	NOT_TRIP_MEMBER(HttpStatus.FORBIDDEN, "이 여행의 멤버만 할 수 있습니다."),
-	NOT_TRIP_HOST(HttpStatus.FORBIDDEN, "방장만 할 수 있습니다.");
+	NOT_TRIP_HOST(HttpStatus.FORBIDDEN, "방장만 할 수 있습니다."),
+	// 시안에서 초대 코드 6칸이 빨간 테두리로 바뀌는 경우
+	INVITE_CODE_NOT_FOUND(HttpStatus.NOT_FOUND, "초대 코드를 다시 확인해 주세요."),
+	TRIP_FULL(HttpStatus.CONFLICT, "여행 인원이 가득 찼습니다."),
+	// 지출이 있는 여행의 통화를 바꾸면 저장된 환율·외화 금액과 어긋난다
+	TRIP_CURRENCY_LOCKED(HttpStatus.CONFLICT, "지출이 있는 여행은 통화를 바꿀 수 없습니다."),
+	// 기간을 줄이면 밖으로 밀려나는 일정이 있을 때. details에 개수를 담는다
+	TRIP_PERIOD_CONFLICT(HttpStatus.CONFLICT, "변경할 기간 밖에 일정이 있습니다."),
+
+	// Schedule
+	SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "일정을 찾을 수 없습니다."),
+	INVALID_TIME_RANGE(HttpStatus.BAD_REQUEST, "종료 시간은 시작 시간보다 늦어야 합니다."),
+	SCHEDULE_OUT_OF_TRIP(HttpStatus.BAD_REQUEST, "여행 기간 안의 날짜를 선택해 주세요."),
+	// details에 겹친 일정(id · 제목 · 시간)을 담는다. 시안의 "겹친 일정 표시"에 쓴다
+	SCHEDULE_OVERLAP(HttpStatus.CONFLICT, "다른 일정과 시간이 겹쳐요."),
+	// 고정된 일정은 고정을 먼저 풀어야 바꾸거나 지울 수 있다
+	SCHEDULE_LOCKED(HttpStatus.CONFLICT, "고정된 일정이에요. 고정을 먼저 풀어 주세요."),
+	// 조회 후 다른 사람이 먼저 고쳤을 때. 앱은 다시 불러와 보여 준다
+	VERSION_CONFLICT(HttpStatus.CONFLICT, "다른 사람이 먼저 수정했어요. 새로고침 후 다시 시도해 주세요."),
+
+	// Replan (AI 일정 재구성)
+	// 오늘이 여행 기간이 아닐 때
+	REPLAN_NOT_TODAY(HttpStatus.BAD_REQUEST, "여행 중인 날에만 일정을 다시 짤 수 있어요."),
+	// 고정 · 완료 · 다른 날 일정, 또는 그대로 둘 일정 뒤의 일정. details에 어떤 일정인지 담는다
+	REPLAN_INVALID_TARGET(HttpStatus.BAD_REQUEST, "다시 짤 수 없는 일정이 있어요."),
+	// 추천을 받은 지 30분이 지났을 때
+	REPLAN_EXPIRED(HttpStatus.GONE, "추천이 만료됐어요. 다시 추천받아 주세요."),
+	// 추천 뒤 다른 사람이 그날 일정을 바꿨을 때 (시안: "일정이 바뀌었어요, 다시 추천받기")
+	REPLAN_STALE(HttpStatus.CONFLICT, "일정이 바뀌었어요. 다시 추천받아 주세요."),
+
+	// Receipt (영수증 읽기). 앱은 이 오류들을 받으면 기기 안 OCR 결과를 대신 쓴다
+	// 서버에 Gemini 키가 없을 때
+	RECEIPT_AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "지금은 영수증을 서버에서 읽을 수 없어요."),
+	// Gemini가 답하지 않거나(붐빔 · 시간 초과) 답이 형식에 맞지 않을 때
+	RECEIPT_AI_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "영수증을 읽지 못했어요. 잠시 후 다시 시도해 주세요."),
+	// 영수증이 아니거나 총액을 찾지 못했을 때
+	RECEIPT_UNREADABLE(HttpStatus.UNPROCESSABLE_CONTENT, "영수증에서 금액을 찾지 못했어요. 다시 찍어 주세요."),
+
+	// Exchange rate
+	// 그 날짜와 이전 날짜 모두 환율이 없을 때. 앱은 원화 직접 입력(KRW)이나 직접 입력 환율(MANUAL)을 안내한다
+	EXCHANGE_RATE_NOT_FOUND(HttpStatus.NOT_FOUND, "환율 정보를 찾을 수 없습니다."),
+
+	// Expense
+	// 금액·분담 규칙 위반. details에 어느 값이 문제인지 담는다 (예: "items[0].amountLocal")
+	INVALID_EXPENSE(HttpStatus.BAD_REQUEST, "지출 내용을 다시 확인해 주세요."),
+	PREPAID_RATE_NOT_SET(HttpStatus.BAD_REQUEST, "결제자의 선불 환율이 설정되어 있지 않습니다."),
+	EXPENSE_NOT_FOUND(HttpStatus.NOT_FOUND, "지출을 찾을 수 없습니다."),
+	// 결제자 · 작성자 · 방장만 고치거나 지울 수 있다
+	NOT_EXPENSE_EDITOR(HttpStatus.FORBIDDEN, "결제자, 작성자, 방장만 수정할 수 있습니다."),
+
+	// Settlement
+	NOTHING_TO_SETTLE(HttpStatus.CONFLICT, "주고받을 돈이 없습니다."),
+	SETTLEMENT_SHARE_NOT_FOUND(HttpStatus.NOT_FOUND, "공유한 정산을 찾을 수 없습니다."),
+
+	// Budget
+	BUDGET_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "예산 항목을 찾을 수 없습니다."),
+
+	// Task
+	TASK_NOT_FOUND(HttpStatus.NOT_FOUND, "준비 업무를 찾을 수 없습니다."),
+	// 함께 할(TEAM) 업무는 만든 사람 · 담당자 · 방장만 지울 수 있다
+	NOT_TASK_OWNER(HttpStatus.FORBIDDEN, "업무를 만든 사람, 담당자, 방장만 지울 수 있습니다."),
+
+	// Poll
+	POLL_NOT_FOUND(HttpStatus.NOT_FOUND, "투표를 찾을 수 없습니다."),
+	POLL_CLOSED(HttpStatus.CONFLICT, "마감된 투표입니다."),
+	INVALID_POLL_OPTION(HttpStatus.BAD_REQUEST, "이 투표의 후보가 아닙니다."),
+	// 마감·삭제는 만든 사람과 방장만 할 수 있다
+	NOT_POLL_MANAGER(HttpStatus.FORBIDDEN, "투표를 만든 사람이나 방장만 할 수 있습니다."),
+
+	// Notification
+	NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다.");
 
 	private final HttpStatus status;
 	private final String message;

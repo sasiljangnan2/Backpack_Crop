@@ -232,6 +232,8 @@ gradle-app.setting
 
 ### dotenv ###
 .env
+# scripts/run-local-windows.ps1이 만드는 로컬 Redis 비밀번호
+.redis_password
 
 ### Claude Code 로컬 상태 ###
 .claude/
@@ -244,3 +246,5 @@ gradle-app.setting
 *firebase-adminsdk*.json
 
 # End of https://www.toptal.com/developers/gitignore/api/intellij+all,java,gradle,visualstudiocode,netbeans,macos,windows
+# 클라우드 배포: 서버에서 만든 비밀 값 · 푸시 키 (docs/deploy-cloud.md)
+/deploy/secrets/

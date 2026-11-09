@@ -34,8 +34,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(BaseException.class)
 	public ResponseEntity<ErrorResponse> handleBaseException(BaseException e) {
 		ErrorCode errorCode = e.getErrorCode();
-		log.warn("비즈니스 예외: code={}, message={}", errorCode, e.getMessage());
-		return toResponse(errorCode);
+		log.warn("비즈니스 예외: code={}, message={}, details={}", errorCode, e.getMessage(), e.getDetails());
+		return ResponseEntity.status(errorCode.getStatus()).body(ErrorResponse.of(errorCode, e.getDetails()));
 	}
 
 	// 401 - SecurityConfig의 AuthenticationEntryPoint도 이쪽으로 위임한다

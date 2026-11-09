@@ -2,6 +2,8 @@ package com.backpackcorp.backpack.expense.domain;
 
 import java.math.BigDecimal;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -26,12 +28,17 @@ import lombok.NoArgsConstructor;
 public class ExpenseItem extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "expense_id", nullable = false)
 	private Expense expense;
 
 	// EQUAL이면 항목 1개(총액)
 	@Column(nullable = false, length = 100)
 	private String name;
+
+	// 외국어 영수증에서 읽은 항목 이름의 한국어 번역. 없으면 null
+	@Column(length = 100)
+	private String nameKo;
 
 	@Column(precision = 15, scale = 2)
 	private BigDecimal amountLocal;
@@ -44,9 +51,11 @@ public class ExpenseItem extends BaseEntity {
 	private int sortOrder;
 
 	@Builder
-	private ExpenseItem(Expense expense, String name, BigDecimal amountLocal, BigDecimal amountKrw, int sortOrder) {
+	private ExpenseItem(Expense expense, String name, String nameKo, BigDecimal amountLocal, BigDecimal amountKrw,
+		int sortOrder) {
 		this.expense = expense;
 		this.name = name;
+		this.nameKo = nameKo;
 		this.amountLocal = amountLocal;
 		this.amountKrw = amountKrw;
 		this.sortOrder = sortOrder;

@@ -2,6 +2,8 @@ package com.backpackcorp.backpack.global.storage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.UUID;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.backpackcorp.backpack.global.security.TokenService;
+import com.backpackcorp.backpack.user.domain.Role;
+
 // 업로드 크기 제한과 /files/** 서빙은 서블릿 컨테이너가 처리하므로 MockMvc가 아니라 실제 톰캣으로 확인한다
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -29,6 +34,8 @@ class ImageUploadHttpTest {
 
 	@Value("${local.server.port}")
 	private int port;
+	@Autowired
+	private TokenService tokenService;
 
 	@Test
 	void 업로드한_이미지를_토큰_없이_files_경로로_내려받을_수_있다() {
@@ -71,7 +78,10 @@ class ImageUploadHttpTest {
 				return "photo.png";
 			}
 		});
+		// 업로드는 로그인한 사용자만 한다 (내려받기만 토큰 없이 열려 있다)
 		return client().post().uri("/test/images")
+			.header(HttpHeaders.AUTHORIZATION,
+				"Bearer " + tokenService.createAccessToken(UUID.randomUUID(), Role.USER))
 			.contentType(MediaType.MULTIPART_FORM_DATA)
 			.body(body)
 			.exchange((request, response) -> ResponseEntity.status(response.getStatusCode())

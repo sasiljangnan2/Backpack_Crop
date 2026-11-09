@@ -1,158 +1,337 @@
-const int maxSettlementWon = 9007199254740991;
+import '../../../core/network/json.dart';
+import '../../expense/data/expense_models.dart';
+import '../../trip/data/trip_models.dart';
 
-int _won(Object? value, {bool hasSign = false}) {
-  if (value is! int ||
-      value.abs() > maxSettlementWon ||
-      (!hasSign && value < 0)) {
-    throw const FormatException('Invalid KRW amount');
-  }
-  return value;
-}
+enum SettlementStatus { receive, send, settled }
 
-class SettlementPerson {
-  const SettlementPerson({required this.memberId, required this.name});
-  final String memberId, name;
-  factory SettlementPerson.fromJson(Map<String, Object?> json) =>
-      SettlementPerson(
-        memberId: json['memberId'] as String,
-        name: json['name'] as String,
-      );
-  Map<String, Object?> toJson() => {'memberId': memberId, 'name': name};
-}
+enum TransferDirection { send, receive }
 
 class SettlementMember {
   const SettlementMember({
-    required this.person,
+    required this.memberId,
+    required this.name,
+    required this.isMe,
+    required this.hasLeft,
     required this.paidKrw,
     required this.shareKrw,
     required this.balanceKrw,
+    required this.status,
   });
-  final SettlementPerson person;
-  final int paidKrw, shareKrw, balanceKrw;
-  factory SettlementMember.fromJson(Map<String, Object?> json) =>
-      SettlementMember(
-        person: SettlementPerson.fromJson(json),
-        paidKrw: _won(json['paidKrw']),
-        shareKrw: _won(json['shareKrw']),
-        balanceKrw: _won(json['balanceKrw'], hasSign: true),
-      );
-  Map<String, Object?> toJson() => {
-    ...person.toJson(),
-    'paidKrw': paidKrw,
-    'shareKrw': shareKrw,
-    'balanceKrw': balanceKrw,
-  };
+
+  factory SettlementMember.fromJson(Json json) => SettlementMember(
+    memberId: json['memberId'] as String,
+    name: json['name'] as String,
+    isMe: json['isMe'] as bool? ?? false,
+    hasLeft: json['hasLeft'] as bool? ?? false,
+    paidKrw: integer(json['paidKrw']),
+    shareKrw: integer(json['shareKrw']),
+    balanceKrw: integer(json['balanceKrw']),
+    status: enumOf(
+      SettlementStatus.values,
+      json['status'],
+      SettlementStatus.settled,
+    ),
+  );
+
+  final String memberId;
+  final String name;
+  final bool isMe;
+  final bool hasLeft;
+  final int paidKrw;
+  final int shareKrw;
+  final int balanceKrw;
+  final SettlementStatus status;
 }
 
-class SettlementTransfer {
-  const SettlementTransfer({
+class Transfer {
+  const Transfer({
     required this.from,
     required this.to,
     required this.amountKrw,
   });
-  final SettlementPerson from, to;
+
+  factory Transfer.fromJson(Json json) => Transfer(
+    from: MemberRef.fromJson(json['from'] as Json),
+    to: MemberRef.fromJson(json['to'] as Json),
+    amountKrw: integer(json['amountKrw']),
+  );
+
+  final MemberRef from;
+  final MemberRef to;
   final int amountKrw;
-  bool involves(String id) => from.memberId == id || to.memberId == id;
-  factory SettlementTransfer.fromJson(Map<String, Object?> json) =>
-      SettlementTransfer(
-        from: SettlementPerson.fromJson(json['from'] as Map<String, Object?>),
-        to: SettlementPerson.fromJson(json['to'] as Map<String, Object?>),
-        amountKrw: _won(json['amountKrw']),
-      );
-  Map<String, Object?> toJson() => {
-    'from': from.toJson(),
-    'to': to.toJson(),
-    'amountKrw': amountKrw,
-  };
 }
 
-class SettlementSnapshot {
-  SettlementSnapshot({
+class Settlement {
+  const Settlement({
     required this.totalKrw,
-    required List<SettlementMember> members,
-    required List<SettlementTransfer> transfers,
-  }) : members = List.unmodifiable(members),
-       transfers = List.unmodifiable(transfers) {
-    _validate();
-  }
+    required this.expenseCount,
+    required this.transferTotalKrw,
+    required this.directTransferCount,
+    required this.members,
+    required this.transfers,
+  });
+
+  factory Settlement.fromJson(Json json) => Settlement(
+    totalKrw: integer(json['totalKrw']),
+    expenseCount: integer(json['expenseCount']),
+    transferTotalKrw: integer(json['transferTotalKrw']),
+    directTransferCount: integerOrNull(json['directTransferCount']) ?? 0,
+    members: list(json['members'], SettlementMember.fromJson),
+    transfers: list(json['transfers'], Transfer.fromJson),
+  );
+
   final int totalKrw;
+  final int expenseCount;
+  final int transferTotalKrw;
+
+  /// 지출마다 결제자에게 바로 보낸다면 필요한 송금 건수 (최소화 전)
+  final int directTransferCount;
   final List<SettlementMember> members;
-  final List<SettlementTransfer> transfers;
-  SettlementMember? member(String id) {
-    for (final item in members) {
-      if (item.person.memberId == id) {
-        return item;
-      }
-    }
-    return null;
-  }
+  final List<Transfer> transfers;
+}
 
-  List<SettlementTransfer> transfersFor(String id) =>
-      List.unmodifiable(transfers.where((item) => item.involves(id)));
-  factory SettlementSnapshot.fromJson(Map<String, Object?> json) =>
-      SettlementSnapshot(
-        totalKrw: _won(json['totalKrw']),
-        members: (json['members'] as List<Object?>)
-            .map(
-              (item) => SettlementMember.fromJson(item as Map<String, Object?>),
-            )
-            .toList(),
-        transfers: (json['transfers'] as List<Object?>)
-            .map(
-              (item) =>
-                  SettlementTransfer.fromJson(item as Map<String, Object?>),
-            )
-            .toList(),
-      );
-  Map<String, Object?> toJson() => {
-    'totalKrw': totalKrw,
-    'members': members.map((item) => item.toJson()).toList(),
-    'transfers': transfers.map((item) => item.toJson()).toList(),
-  };
+class MyTransfer {
+  const MyTransfer({
+    required this.direction,
+    required this.counterpart,
+    required this.amountKrw,
+  });
 
-  // Reject inconsistent responses instead of silently showing an incorrect debt.
-  void _validate() {
-    _won(totalKrw);
-    final byId = <String, SettlementMember>{};
-    var paid = BigInt.zero, share = BigInt.zero;
-    for (final item in members) {
-      final id = item.person.memberId;
-      if (id.isEmpty ||
-          byId.containsKey(id) ||
-          item.person.name.trim().isEmpty) {
-        throw const FormatException('Invalid settlement member');
-      }
-      _won(item.paidKrw);
-      _won(item.shareKrw);
-      _won(item.balanceKrw, hasSign: true);
-      if (item.balanceKrw != item.paidKrw - item.shareKrw) {
-        throw const FormatException('Invalid member balance');
-      }
-      byId[id] = item;
-      paid += BigInt.from(item.paidKrw);
-      share += BigInt.from(item.shareKrw);
-    }
-    if (paid != BigInt.from(totalKrw) || share != BigInt.from(totalKrw)) {
-      throw const FormatException('Invalid settlement total');
-    }
-    final net = {for (final id in byId.keys) id: BigInt.zero};
-    for (final item in transfers) {
-      _won(item.amountKrw);
-      if (item.amountKrw == 0 ||
-          item.from.memberId == item.to.memberId ||
-          !byId.containsKey(item.from.memberId) ||
-          !byId.containsKey(item.to.memberId)) {
-        throw const FormatException('Invalid transfer');
-      }
-      net[item.from.memberId] =
-          net[item.from.memberId]! - BigInt.from(item.amountKrw);
-      net[item.to.memberId] =
-          net[item.to.memberId]! + BigInt.from(item.amountKrw);
-    }
-    for (final item in members) {
-      if (net[item.person.memberId] != BigInt.from(item.balanceKrw)) {
-        throw const FormatException('Unbalanced transfer amounts');
-      }
-    }
-  }
+  factory MyTransfer.fromJson(Json json) => MyTransfer(
+    direction: enumOf(
+      TransferDirection.values,
+      json['direction'],
+      TransferDirection.send,
+    ),
+    counterpart: MemberRef.fromJson(json['counterpart'] as Json),
+    amountKrw: integer(json['amountKrw']),
+  );
+
+  final TransferDirection direction;
+  final MemberRef counterpart;
+  final int amountKrw;
+}
+
+class ExpenseLine {
+  const ExpenseLine({
+    required this.expenseId,
+    required this.title,
+    required this.category,
+    required this.paidDate,
+    required this.amountKrw,
+    required this.payer,
+    required this.isPaidByMe,
+    required this.paidKrw,
+    required this.myShareKrw,
+    required this.balanceKrw,
+  });
+
+  factory ExpenseLine.fromJson(Json json) => ExpenseLine(
+    expenseId: json['expenseId'] as String,
+    title: json['title'] as String,
+    category: enumOf(
+      ExpenseCategory.values,
+      json['category'],
+      ExpenseCategory.etc,
+    ),
+    paidDate: date(json['paidDate']),
+    amountKrw: integer(json['amountKrw']),
+    payer: MemberRef.fromJson(json['payer'] as Json),
+    isPaidByMe: json['isPaidByMe'] as bool? ?? false,
+    paidKrw: integer(json['paidKrw']),
+    myShareKrw: integer(json['myShareKrw']),
+    balanceKrw: integer(json['balanceKrw']),
+  );
+
+  final String expenseId;
+  final String title;
+  final ExpenseCategory category;
+  final DateTime paidDate;
+  final int amountKrw;
+  final MemberRef payer;
+  final bool isPaidByMe;
+  final int paidKrw;
+  final int myShareKrw;
+  final int balanceKrw;
+}
+
+class MySettlement {
+  const MySettlement({
+    required this.me,
+    required this.paidKrw,
+    required this.shareKrw,
+    required this.balanceKrw,
+    required this.status,
+    required this.tripTotalKrw,
+    required this.expenseCount,
+    required this.transfers,
+    required this.expenses,
+  });
+
+  factory MySettlement.fromJson(Json json) => MySettlement(
+    me: MemberRef.fromJson(json['me'] as Json),
+    paidKrw: integer(json['paidKrw']),
+    shareKrw: integer(json['shareKrw']),
+    balanceKrw: integer(json['balanceKrw']),
+    status: enumOf(
+      SettlementStatus.values,
+      json['status'],
+      SettlementStatus.settled,
+    ),
+    tripTotalKrw: integer(json['tripTotalKrw']),
+    expenseCount: integer(json['expenseCount']),
+    transfers: list(json['transfers'], MyTransfer.fromJson),
+    expenses: list(json['expenses'], ExpenseLine.fromJson),
+  );
+
+  final MemberRef me;
+  final int paidKrw;
+  final int shareKrw;
+  final int balanceKrw;
+  final SettlementStatus status;
+  final int tripTotalKrw;
+  final int expenseCount;
+  final List<MyTransfer> transfers;
+  final List<ExpenseLine> expenses;
+}
+
+class SettlementShareSummary {
+  const SettlementShareSummary({
+    required this.id,
+    required this.sharedBy,
+    required this.createdAt,
+    required this.transferCount,
+    required this.transferTotalKrw,
+  });
+
+  factory SettlementShareSummary.fromJson(Json json) => SettlementShareSummary(
+    id: json['id'] as String,
+    sharedBy: MemberRef.fromJson(json['sharedBy'] as Json),
+    createdAt: instant(json['createdAt']),
+    transferCount: integer(json['transferCount']),
+    transferTotalKrw: integer(json['transferTotalKrw']),
+  );
+
+  final String id;
+  final MemberRef sharedBy;
+  final DateTime createdAt;
+  final int transferCount;
+  final int transferTotalKrw;
+}
+
+class SettlementShare {
+  const SettlementShare({
+    required this.id,
+    required this.sharedBy,
+    required this.createdAt,
+    required this.transferTotalKrw,
+    required this.transfers,
+  });
+
+  factory SettlementShare.fromJson(Json json) => SettlementShare(
+    id: json['id'] as String,
+    sharedBy: MemberRef.fromJson(json['sharedBy'] as Json),
+    createdAt: instant(json['createdAt']),
+    transferTotalKrw: integer(json['transferTotalKrw']),
+    transfers: list(json['transfers'], Transfer.fromJson),
+  );
+
+  final String id;
+  final MemberRef sharedBy;
+  final DateTime createdAt;
+  final int transferTotalKrw;
+  final List<Transfer> transfers;
+}
+
+class BudgetItem {
+  const BudgetItem({
+    required this.id,
+    required this.category,
+    required this.name,
+    required this.amount,
+    required this.currencyCode,
+    required this.amountKrw,
+  });
+
+  factory BudgetItem.fromJson(Json json) => BudgetItem(
+    id: json['id'] as String,
+    category: enumOf(
+      ExpenseCategory.values,
+      json['category'],
+      ExpenseCategory.etc,
+    ),
+    name: json['name'] as String,
+    amount: decimal(json['amount']),
+    currencyCode: json['currencyCode'] as String,
+    amountKrw: integerOrNull(json['amountKrw']),
+  );
+
+  final String id;
+  final ExpenseCategory category;
+  final String name;
+  final double amount;
+  final String currencyCode;
+  final int? amountKrw;
+}
+
+class CategoryBudget {
+  const CategoryBudget({
+    required this.category,
+    required this.budgetKrw,
+    required this.spentKrw,
+  });
+
+  factory CategoryBudget.fromJson(Json json) => CategoryBudget(
+    category: enumOf(
+      ExpenseCategory.values,
+      json['category'],
+      ExpenseCategory.etc,
+    ),
+    budgetKrw: integer(json['budgetKrw']),
+    spentKrw: integer(json['spentKrw']),
+  );
+
+  final ExpenseCategory category;
+  final int budgetKrw;
+  final int spentKrw;
+}
+
+class Budget {
+  const Budget({
+    required this.items,
+    required this.summary,
+    required this.totalBudgetKrw,
+    required this.totalSpentKrw,
+    required this.memberCount,
+    required this.perPersonBudgetKrw,
+    required this.currencyCode,
+    required this.todayRate,
+    required this.hasUnconvertedItems,
+  });
+
+  factory Budget.fromJson(Json json) => Budget(
+    items: list(json['items'], BudgetItem.fromJson),
+    summary: list(json['summary'], CategoryBudget.fromJson),
+    totalBudgetKrw: integer(json['totalBudgetKrw']),
+    totalSpentKrw: integer(json['totalSpentKrw']),
+    memberCount: integer(json['memberCount']),
+    perPersonBudgetKrw: integer(json['perPersonBudgetKrw']),
+    currencyCode: json['currencyCode'] as String,
+    todayRate: ExchangeRate.fromJsonOrNull(json['todayRate']),
+    hasUnconvertedItems: json['hasUnconvertedItems'] as bool? ?? false,
+  );
+
+  final List<BudgetItem> items;
+  final List<CategoryBudget> summary;
+  final int totalBudgetKrw;
+  final int totalSpentKrw;
+  final int memberCount;
+  final int perPersonBudgetKrw;
+  final String currencyCode;
+  final ExchangeRate? todayRate;
+  final bool hasUnconvertedItems;
+
+  /// 예산 대비 사용률 (예산이 없으면 null)
+  double? get usedRatio =>
+      totalBudgetKrw == 0 ? null : totalSpentKrw / totalBudgetKrw;
 }

@@ -17,7 +17,6 @@ import java.util.UUID;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -50,10 +49,7 @@ import com.backpackcorp.backpack.user.domain.Role;
 @Import(SecurityConfigTest.MeController.class)
 class SecurityConfigTest {
 
-	// SecurityConfig의 개발용 permitAll을 authenticated()로 되돌리면 이 테스트들의 @Disabled를 지운다
-	private static final String DEV_PERMIT_ALL = "개발용 permitAll 동안 비활성화";
-
-	// 매핑된 컨트롤러가 없는 경로. 보안을 통과하면 404, 막히면 401이 나온다
+	// 토큰이 있어야 하는 경로. 토큰이 없거나 잘못되면 컨트롤러에 닿기 전에 401이 나온다
 	private static final String PROTECTED_PATH = "/api/trips";
 
 	@Autowired
@@ -77,7 +73,6 @@ class SecurityConfigTest {
 	}
 
 	@Test
-	@Disabled(DEV_PERMIT_ALL)
 	void 토큰이_없으면_401을_ErrorResponse_형식으로_응답한다() throws Exception {
 		mockMvc.perform(get(PROTECTED_PATH))
 			.andExpect(status().isUnauthorized())
@@ -85,7 +80,6 @@ class SecurityConfigTest {
 	}
 
 	@Test
-	@Disabled(DEV_PERMIT_ALL)
 	void 공개_목록에_없는_auth_경로는_인증이_필요하다() throws Exception {
 		mockMvc.perform(post("/api/auth/logout"))
 			.andExpect(status().isUnauthorized());
