@@ -1,6 +1,7 @@
 package com.backpackcorp.backpack.replan;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -151,7 +152,9 @@ class ReplanApiTest extends ApiTestSupport {
 			.andExpect(jsonPath("$.context.currentPlaceFromGps").value(false))
 			// 그대로 둘 다음 일정(산책 16:30)까지 갈 수 있게 맞춘다
 			.andExpect(jsonPath("$.context.anchor.title").value("나카노시마 산책"))
-			.andExpect(jsonPath("$.plans[1].items[0].title").value("신사이바시 쇼핑"));
+			// 다시 짤 일정이 하나뿐이라 이동 최소 안이 조건 안과 같은 순서다. 같은 안은 한 번만 보낸다
+			.andExpect(jsonPath("$.plans[*].key", contains("CONDITION", "SLACK")))
+			.andExpect(jsonPath("$.plans[0].items[0].title").value("신사이바시 쇼핑"));
 	}
 
 	private ResultActions recommend(List<String> ids, String conditions) throws Exception {
