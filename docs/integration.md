@@ -15,7 +15,7 @@
 
 회원·여행 관리, 일정·예약·활동 기록, 장소 투표, 지도·장소 검색·동선, AI 추천안 비교·적용, 영수증 촬영·OCR·번역·직접 입력, 경비 분담·정산 공유, 환율·예산, 준비 업무, 알림함·푸시, 서버 주소 설정 및 배포 스크립트를 full-app에서 통합했습니다. 백엔드 코드는 해당 브랜치와 동일합니다.
 
-기존의 별도 메모리 저장소·샘플 진입점 대신 실제 API 화면으로 통일했습니다. 서버 없이 로그인·여행 데이터를 사용할 수 있는 샘플 모드는 제공하지 않습니다. 서버 실행법과 개발 계정은 README 및 backend/README.md에 있습니다. 기존 main과 full-app에서 저장한 로그인 세션은 한 쌍의 보안 저장소 형식으로 읽고 유지합니다.
+기존의 별도 메모리 저장소·샘플 진입점 대신 실제 API 화면으로 통일했습니다. 서버 없이 로그인·여행 데이터를 사용할 수 있는 샘플 모드는 제공하지 않습니다. 서버 실행법과 개발 계정은 [개발 가이드](development.md) 및 [백엔드 가이드](../backend/README.md)에 있습니다. 기존 main과 full-app에서 저장한 로그인 세션은 한 쌍의 보안 저장소 형식으로 읽고 유지합니다.
 
 분류 필터는 서버 요청에 category를 전달하고 새 목록·커서를 받습니다. 필터 조회의 합계와 여행 전체 합계를 구분하고, 상단 공동 지출 카드는 서버의 전체 분류 합계를 사용합니다. 내 부담액·예산은 각각 서버 응답을 사용하며 조회 실패를 0원으로 표시하지 않습니다. 이전 목록 요청이 늦게 도착해 최신 필터를 덮어쓰는 것도 방지합니다.
 
@@ -31,4 +31,4 @@
 - Android x64 디버그 APK 빌드 성공
 - 실제 Flutter 화면 캡처: [홈](screenshots/integration/home.png), [경비](screenshots/integration/expenses.png), [일정](screenshots/integration/schedule.png), [정산](screenshots/integration/settlement.png), [AI 입력](screenshots/integration/ai-replan.png), [추천 비교](screenshots/integration/ai-compare.png). 캡처의 데이터와 추천안은 테스트 응답입니다.
 
-실제 Android 기기에 설치한 뒤 카메라·위치 권한·외부 AI·Google Maps·FCM을 호출하는 검증 및 iOS 빌드는 이번 로컬 검증에 포함하지 않았습니다. 외부 서비스 설정은 README·docs/google-maps.md·docs/deploy-cloud.md를 따릅니다. 게스트 인증은 full-app에도 아직 완성되어 있지 않아 이번 통합으로 추가되지 않습니다. MySQL 마이그레이션 검증은 기존 Backend CI의 실제 MySQL 부팅 검사로 별도 확인합니다.
+실제 Android 기기에 설치한 뒤 카메라·위치 권한·외부 AI·Google Maps·FCM을 호출하는 검증 및 iOS 빌드는 이번 로컬 검증에 포함하지 않았습니다. 외부 서비스 설정은 [개발 가이드](development.md)·[지도 설정](google-maps.md)·[배포 가이드](deploy-cloud.md)를 따릅니다. 게스트 인증은 full-app에도 아직 완성되어 있지 않아 이번 통합으로 추가되지 않습니다. MySQL 마이그레이션 검증은 기존 Backend CI의 실제 MySQL 부팅 검사로 별도 확인합니다.
