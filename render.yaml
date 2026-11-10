@@ -1,0 +1,29 @@
+# codex/chore/render-demo 전용. main에 합치지 않는 무료 시연 구성.
+services:
+  - type: web
+    name: backpack-render-demo
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: codex/chore/render-demo
+    dockerfilePath: ./backend/Dockerfile.render-demo
+    dockerContext: ./backend
+    autoDeployTrigger: "off"
+    healthCheckPath: /files/render-health.txt
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: render-demo
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: backpack-render-demo-redis
+          property: connectionString
+
+  - type: keyvalue
+    name: backpack-render-demo-redis
+    plan: free
+    region: singapore
+    maxmemoryPolicy: noeviction
+    ipAllowList: []

@@ -1,0 +1,40 @@
+# 임시 시연 전용. 서버 재시작·절전 시 회원과 여행 데이터가 초기화된다.
+# prod/dev와 함께 활성화하지 않는다.
+spring:
+  datasource:
+    url: jdbc:h2:mem:backpack;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      connection-init-sql: "SET TIME ZONE 'UTC'"
+      maximum-pool-size: 4
+      minimum-idle: 1
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  h2:
+    console:
+      enabled: false
+  cache:
+    redis:
+      time-to-live: 5m
+  data:
+    redis:
+      url: ${REDIS_URL}
+
+server:
+  address: 0.0.0.0
+  port: ${PORT:10000}
+  tomcat:
+    threads:
+      max: 24
+      min-spare: 2
+
+storage:
+  public-base-url: ${RENDER_EXTERNAL_URL:http://localhost:10000}/files
+
+firebase:
+  credentials-path: ""
