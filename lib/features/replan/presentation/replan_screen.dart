@@ -677,7 +677,7 @@ class _Loading extends StatelessWidget {
                     ? '고정 일정 유지'
                     : '고정 일정 유지 · ${Fmt.time(fixed.schedule.startTime)} ${fixed.schedule.title}',
               ),
-              const _Step(done: false, text: '추천안 3개 만드는 중…'),
+              const _Step(done: false, text: '추천안을 만들고 있습니다...'),
             ],
           ),
         ),
