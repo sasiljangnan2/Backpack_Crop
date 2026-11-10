@@ -4,6 +4,11 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    hikari:
+      # 메모리 1GB 서버에서 MySQL과 함께 돈다. 연결마다 양쪽 메모리를 쓰므로 사용자가 적을 때는 5개면 충분하다
+      # (외부 API · AI를 부르는 동안에는 DB 연결을 잡고 있지 않는다)
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+      minimum-idle: 2
   data:
     redis:
       host: ${REDIS_HOST}
@@ -14,6 +19,13 @@ spring:
       password: ${REDIS_PASSWORD:}
       ssl:
         enabled: ${REDIS_SSL:false}
+
+server:
+  tomcat:
+    threads:
+      # 기본 200개는 1 vCPU · 1GB 서버에 많다. 스레드마다 스택 메모리를 쓴다
+      max: ${TOMCAT_MAX_THREADS:40}
+      min-spare: 4
 
 # 앱에 내려주는 이미지 주소의 앞부분 (예: https://api.example.com/files)
 storage:

@@ -83,6 +83,9 @@
 | `VERSION_CONFLICT` | 409 | 조회 후 다른 사람이 먼저 수정함 (일정 · 지출) |
 | `EXPENSE_NOT_FOUND` | 404 | 지출 없음 |
 | `NOT_EXPENSE_EDITOR` | 403 | 결제자 · 작성자 · 방장이 아님 |
+| `FUND_INSUFFICIENT` | 409 | 공금 잔액보다 큰 공금 지출. `details` 첫 값이 안내 문구 |
+| `FUND_CONTRIBUTION_NOT_FOUND` | 404 | 모은 공금 내역 없음 |
+| `NOT_FUND_EDITOR` | 403 | 돈을 낸 사람 · 입력한 사람 · 방장이 아님 |
 | `NOTHING_TO_SETTLE` | 409 | 공유할 송금 내역이 없음 |
 | `SETTLEMENT_SHARE_NOT_FOUND` | 404 | 공유한 정산 없음 |
 | `EXCHANGE_RATE_NOT_FOUND` | 404 | 환율 정보 없음 (그 날짜 이전 값도 없음) |
@@ -158,6 +161,10 @@
 | | POST | `/api/trips/{tripId}/budget-items` | 추가 |
 | | PATCH | `/api/trips/{tripId}/budget-items/{budgetItemId}` | 수정 |
 | | DELETE | `/api/trips/{tripId}/budget-items/{budgetItemId}` | 삭제 |
+| 공금 | GET | `/api/trips/{tripId}/fund` | 공금 현황 (모은 돈 · 쓴 돈 · 남은 돈) |
+| | POST | `/api/trips/{tripId}/fund/contributions` | 공금 모으기 |
+| | PUT | `/api/trips/{tripId}/fund/contributions/{contributionId}` | 모은 내역 수정 |
+| | DELETE | `/api/trips/{tripId}/fund/contributions/{contributionId}` | 모은 내역 삭제 |
 | 지출 | GET | `/api/trips/{tripId}/expenses` | 목록 (커서) |
 | | POST | `/api/trips/{tripId}/expenses` | 추가 |
 | | POST | `/api/trips/{tripId}/expenses/preview` | 추가 전 계산 (저장 안 함) |
@@ -382,9 +389,18 @@
 
 `name`, `destination`, `startDate`, `endDate`, `currencyCode`, `timeZone` 중 보낸 필드만 바뀐다.
 
+기간을 바꿀 때:
+
+| 필드 | 규칙 |
+|---|---|
+| moveSchedules | `true`면 출발일이 바뀐 날 수만큼 일정 · 투표 날짜도 옮긴다 (DAY 1 일정은 새 출발일로, 고정 일정 포함) |
+| dropOutside | `true`면 (옮긴 뒤) 새 기간 밖에 남는 일정과 진행 중 투표를 지운다. 없으면 아래 409로 알려 주고 아무것도 바꾸지 않는다 |
+
+멤버들에게 `SCHEDULE_CHANGED` 알림이 간다 ("…님이 여행 기간을 11.27 ~ 11.29로 바꿨어요").
+
 | 에러 | 상황 |
 |---|---|
-| `409 TRIP_PERIOD_CONFLICT` | 바꿀 기간 밖에 일정이 있음. `details.scheduleCount`에 개수 |
+| `409 TRIP_PERIOD_CONFLICT` | 바꿀 기간 밖에 일정 · 진행 중 투표가 있음. `details`: `scheduleCount`, `pollCount`, `days`("10.05, 10.06") |
 | `409 TRIP_CURRENCY_LOCKED` | 지출이 있는 여행의 통화 변경 |
 
 ### DELETE `/api/trips/{tripId}` 🔑 — 여행 삭제
@@ -567,11 +583,12 @@
 | day / startTime / endTime | 필수 |
 | title | 필수, 최대 100자 |
 | placeText | 선택, 최대 100자 |
-| reservationStatus | 선택, 기본 `NONE` |
+| reservationStatus | 선택, 기본 `NONE`. `NONE` · `BEFORE`(예약 전) · `PENDING`(대기) · `CONFIRMED`(확정) |
+| reservationTime | 선택, `HH:mm`. 예약이 없으면(`NONE`) 저장하지 않는다 |
 | memo | 선택, 최대 500자 |
 | isLocked | 선택, 기본 `false` |
 
-`201 Created` — 목록 항목 형식
+`201 Created` — 목록 항목 형식. 응답의 `linkedExpenseId`는 이 일정과 이어진 지출 (없으면 null)
 
 ### PATCH `/api/trips/{tripId}/schedules/{scheduleId}`
 
@@ -695,11 +712,18 @@ AI에는 일정 이름 · 장소 · 시간만 보낸다.
                 "travelBefore": {"mode": "WALK", "minutes": 12, "…": "…"}, "isNew": true}],
      "travelToAnchor": {"mode": "DRIVE", "minutes": 15, "…": "…"},
      "dropped": [{"scheduleId": "…", "title": "나카노시마 공원 산책"}]},
-    {"key": "MIN_TRAVEL", "label": "이동 최소", "…": "…"},
-    {"key": "SLACK", "label": "시간 여유 우선", "…": "…"}
+    {"key": "MIN_TRAVEL", "label": "이동 최소 · 시간 여유 우선", "…": "…"}
   ]
 }
 ```
+
+`plans`는 0~3개다. 세 기준(`CONDITION` · `MIN_TRAVEL` · `SLACK`)으로 만든 안 중
+- 서로 같은 안은 앞의 것 하나만 남기고 `label`을 이어 붙인다 (위 예: 이동 최소 = 시간 여유 우선)
+- 지금 일정과 같은 안(같은 일정을 같은 순서로, 빠지는 · 새 일정 없이)은 뺀다
+- 일정을 넣는 안이 하나라도 있으면, 일정을 하나도 넣지 못하고 지우기만 하는 안은 뺀다
+
+같은 장소 · 같은 순서에 시각 차이가 10분 이내면 같은 안으로 본다. 뺀 안이 있으면 `notice`에 알리고, 하나도 남지 않으면
+`plans: []`와 함께 `notice`가 "바꿀 만한 추천안이 없어요. …"다.
 
 ### POST `/api/trips/{tripId}/replan/apply`
 
@@ -1149,6 +1173,59 @@ AI에는 일정 이름 · 장소 · 시간만 보낸다.
 | `422 RECEIPT_UNREADABLE` | 영수증이 아니거나 총액을 못 읽음 |
 | `503 RECEIPT_AI_UNAVAILABLE` | 서버에 `GEMINI_API_KEY`가 없음 |
 | `503 RECEIPT_AI_FAILED` | Gemini가 25초 안에 답하지 않거나 답이 형식에 맞지 않음 |
+
+---
+
+## 9-1. 공금 ✅ 구현
+
+여행 전에 돈을 모아 두고 거기서 쓰는 경우. 모은 돈은 원화로만 받는다.
+
+### GET `/api/trips/{tripId}/fund`
+
+아래 `POST` · `PUT` · `DELETE`도 같은 형식을 돌려준다.
+
+```json
+{
+  "collectedKrw": 300000,
+  "spentKrw": 90000,
+  "remainingKrw": 210000,
+  "members": [
+    { "member": { "memberId": "0192...", "name": "김방장" }, "contributedKrw": 150000 }
+  ],
+  "contributions": [
+    {
+      "id": "0192...",
+      "member": { "memberId": "0192...", "name": "김방장" },
+      "amountKrw": 150000,
+      "contributedOn": "2026-09-20",
+      "memo": "출발 전 1차",
+      "creator": { "memberId": "0192...", "name": "김방장" },
+      "canEdit": true
+    }
+  ]
+}
+```
+
+### POST `/api/trips/{tripId}/fund/contributions`
+
+```json
+{ "memberId": "0192...", "amountKrw": 150000, "contributedOn": "2026-09-20", "memo": "출발 전 1차" }
+```
+
+`contributedOn`은 선택 (기본 오늘), `memo`는 선택. `201 Created`
+
+### PUT · DELETE `/api/trips/{tripId}/fund/contributions/{contributionId}`
+
+돈을 낸 사람 · 입력한 사람 · 방장만 가능 (`403 NOT_FUND_EDITOR`). 이미 쓴 돈보다 적게 줄이면 `409 FUND_INSUFFICIENT`.
+
+### 지출과 정산에 미치는 영향
+
+- 지출 요청에 `"paidFromFund": true`를 보내면 공금에서 낸 지출이 된다. `payerMemberId`에는 입력한 사람을 보내고, 응답의 `payer`는 공금(`memberId` `00000000-0000-0000-0000-000000000000`, 이름 "공금")이다
+- 등록 · 수정 때 잔액보다 크면 `409 FUND_INSUFFICIENT` (`preview`는 막지 않는다)
+- 결제자가 없으므로 `rateMode: PREPAID`는 `400 INVALID_EXPENSE`
+- 지출 요청의 `scheduleId`는 예약 결제처럼 이어진 일정. 다른 여행의 일정이면 `400 INVALID_EXPENSE`, 일정을 지우면 지출은 남고 연결만 풀린다
+- 정산은 공금을 가상의 멤버로 계산한다: 모은 돈은 각자 낸 돈(`paidKrw`, 그중 `contributedKrw`)에 들어가고, 남은 공금은 "공금 → 멤버", 모자란 공금은 "멤버 → 공금" 송금으로 나온다. 공금 쪽 멤버 자리는 위 `memberId`다
+- 정산 응답의 `fund`(`collectedKrw` · `spentKrw` · `remainingKrw`)는 공금을 쓰지 않은 여행이면 null이고, 예산 응답의 `fund`는 위 공금 현황과 같은 형식이다
 
 ---
 

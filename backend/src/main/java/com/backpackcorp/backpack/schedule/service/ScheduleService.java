@@ -20,6 +20,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.backpackcorp.backpack.expense.repository.ExpenseRepository;
 import com.backpackcorp.backpack.global.exception.BaseException;
 import com.backpackcorp.backpack.global.exception.ErrorCode;
 import com.backpackcorp.backpack.notification.domain.NotificationRefType;
@@ -27,7 +28,6 @@ import com.backpackcorp.backpack.notification.domain.NotificationType;
 import com.backpackcorp.backpack.notification.dto.TripNotificationEvent;
 import com.backpackcorp.backpack.expense.dto.MemberRef;
 import com.backpackcorp.backpack.place.domain.LatLng;
-import com.backpackcorp.backpack.schedule.domain.ReservationStatus;
 import com.backpackcorp.backpack.schedule.domain.Schedule;
 import com.backpackcorp.backpack.schedule.domain.ScheduleActivity;
 import com.backpackcorp.backpack.schedule.dto.ActivityRequest;
@@ -59,6 +59,7 @@ public class ScheduleService {
 	private final TripMemberGuard tripMemberGuard;
 	private final ScheduleRepository scheduleRepository;
 	private final ScheduleActivityRepository scheduleActivityRepository;
+	private final ExpenseRepository expenseRepository;
 	private final ApplicationEventPublisher eventPublisher;
 	private final Clock clock;
 
@@ -94,6 +95,7 @@ public class ScheduleService {
 			.placeCategory(request.placeCategory())
 			.memo(blankToNull(request.memo()))
 			.reservationStatus(request.reservationStatus())
+			.reservationTime(request.reservationTime())
 			.locked(request.isLocked())
 			.createdBy(me)
 			.build());
@@ -133,10 +135,10 @@ public class ScheduleService {
 
 		String title = request.title() != null ? notBlank(request.title()) : schedule.getTitle();
 		String memo = request.memo() != null ? blankToNull(request.memo()) : schedule.getMemo();
-		ReservationStatus reservation = request.reservationStatus() != null
-			? request.reservationStatus()
-			: schedule.getReservationStatus();
-		schedule.changeDetails(title, memo, reservation);
+		schedule.changeDetails(title, memo);
+		if (request.reservationStatus() != null) {
+			schedule.changeReservation(request.reservationStatus(), request.reservationTime());
+		}
 		if (request.placeText() != null) {
 			String placeText = blankToNull(request.placeText());
 			LatLng place = latLng(request.placeLat(), request.placeLng());
@@ -310,15 +312,23 @@ public class ScheduleService {
 	private ScheduleResponse toResponse(Trip trip, Schedule schedule) {
 		Optional<ScheduleActivity> activity = scheduleActivityRepository.findByScheduleId(schedule.getId());
 		Now now = now(trip);
-		return ScheduleResponse.of(schedule, activity.orElse(null), now.date(), now.time());
+		return ScheduleResponse.of(schedule, activity.orElse(null), now.date(), now.time(),
+			linkedExpenses(trip).get(schedule.getId()));
 	}
 
 	private List<ScheduleResponse> toResponses(Trip trip, List<Schedule> schedules) {
 		Map<UUID, ScheduleActivity> activities = activitiesOf(schedules);
+		Map<UUID, UUID> links = linkedExpenses(trip);
 		Now now = now(trip);
 		return schedules.stream()
-			.map(s -> ScheduleResponse.of(s, activities.get(s.getId()), now.date(), now.time()))
+			.map(s -> ScheduleResponse.of(s, activities.get(s.getId()), now.date(), now.time(), links.get(s.getId())))
 			.toList();
+	}
+
+	// 일정 ID → 이어진 지출 ID. 여러 건이면 먼저 등록한 지출
+	private Map<UUID, UUID> linkedExpenses(Trip trip) {
+		return expenseRepository.findScheduleLinks(trip.getId()).stream()
+			.collect(Collectors.toMap(row -> (UUID)row[0], row -> (UUID)row[1], (first, second) -> first));
 	}
 
 	private Map<UUID, ScheduleActivity> activitiesOf(List<Schedule> schedules) {

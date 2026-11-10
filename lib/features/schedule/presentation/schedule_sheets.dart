@@ -5,6 +5,9 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/widgets/common.dart';
+import '../../expense/data/expense_models.dart';
+import '../../expense/presentation/expense_detail_screen.dart';
+import '../../expense/presentation/expense_form_screen.dart';
 import '../../trip/data/trip_models.dart';
 import '../../place/data/place_models.dart';
 import '../../place/presentation/place_search_sheet.dart';
@@ -26,24 +29,190 @@ Future<TimeOfDay?> pickTime(
 );
 
 /// BP-SC-002 일정 등록 · 수정. 저장하면 저장된 일정을 돌려준다.
+/// [onChanged]: 저장하지 않고 닫아도 바뀐 것이 있을 때 부른다 (삭제 · 예약 결제 지출 연결)
 Future<Schedule?> showScheduleForm(
   BuildContext context, {
   required TripDetail trip,
   required DateTime day,
   Schedule? existing,
+  VoidCallback? onChanged,
 }) => showModalBottomSheet<Schedule>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
-  builder: (context) => _ScheduleForm(trip: trip, day: day, existing: existing),
+  builder: (context) => _ScheduleForm(
+    trip: trip,
+    day: day,
+    existing: existing,
+    onChanged: onChanged,
+  ),
 );
 
+/// BP-SC-003 일정 삭제 확인. 고정 · 예약 · 지출 연결 상태를 알려 주고, 지웠으면 true
+Future<bool> confirmDeleteSchedule(
+  BuildContext context, {
+  required TripDetail trip,
+  required Schedule schedule,
+}) async {
+  final hasReservation = schedule.reservationStatus != ReservationStatus.none;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('일정을 삭제할까요?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "'${schedule.title}' 일정이 모든 참여자의 일정에서 사라지고, 참여자에게 알림이 가요. 활동 기록도 함께 지워져요.",
+            style: const TextStyle(fontSize: 14, height: 1.5),
+          ),
+          if (schedule.isLocked ||
+              hasReservation ||
+              schedule.linkedExpenseId != null) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                if (schedule.isLocked)
+                  const Pill(
+                    '고정',
+                    color: Colors.white,
+                    background: AppColors.ink,
+                    icon: Icons.lock_outline,
+                  ),
+                if (hasReservation) ReservationPill(schedule: schedule),
+                if (schedule.linkedExpenseId != null) const LinkedExpensePill(),
+              ],
+            ),
+          ],
+          if (schedule.isLocked)
+            const _DeleteNote('고정된 일정이에요. 삭제하면 고정도 함께 풀려요.'),
+          if (hasReservation) const _DeleteNote('예약 취소는 예약한 곳에서 따로 해 주세요.'),
+          if (schedule.linkedExpenseId != null)
+            const _DeleteNote('연결된 공동 지출은 남아요. 필요하면 경비에서 따로 지워 주세요.'),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('취소'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.error,
+            minimumSize: const Size(0, 44),
+          ),
+          child: const Text('삭제'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) {
+    return false;
+  }
+  try {
+    // 고정된 일정은 서버가 지우지 않으므로 먼저 푼다
+    if (schedule.isLocked) {
+      await services.schedules.update(
+        trip.id,
+        schedule.id,
+        version: schedule.version,
+        locked: false,
+      );
+    }
+    await services.schedules.delete(trip.id, schedule.id);
+    return true;
+  } on ApiException catch (e) {
+    if (context.mounted) {
+      showError(context, e);
+    }
+    return false;
+  }
+}
+
+class _DeleteNote extends StatelessWidget {
+  const _DeleteNote(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          color: AppColors.muted,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+}
+
+/// 예약 상태 배지: 예약 전 · 예약 대기 · 예약 확정 + 예약 시간
+class ReservationPill extends StatelessWidget {
+  const ReservationPill({super.key, required this.schedule});
+
+  final Schedule schedule;
+
+  @override
+  Widget build(BuildContext context) {
+    final at = schedule.reservationTime;
+    final time = at == null ? '' : ' ${Fmt.time(at)}';
+    return switch (schedule.reservationStatus) {
+      ReservationStatus.none => const SizedBox.shrink(),
+      ReservationStatus.before => Pill(
+        '예약 전$time',
+        color: AppColors.muted,
+        background: AppColors.background,
+      ),
+      ReservationStatus.pending => Pill(
+        '예약 대기$time',
+        color: AppColors.warning,
+        background: AppColors.warningSoft,
+      ),
+      ReservationStatus.confirmed => Pill(
+        '예약 확정$time',
+        color: AppColors.success,
+        background: AppColors.successSoft,
+        icon: Icons.check,
+      ),
+    };
+  }
+}
+
+/// 예약 결제가 공동 지출로 등록된 일정
+class LinkedExpensePill extends StatelessWidget {
+  const LinkedExpensePill({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Pill(
+      '지출 연결',
+      color: AppColors.primaryText,
+      background: AppColors.primarySoft,
+      icon: Icons.receipt_long_outlined,
+    );
+  }
+}
+
 class _ScheduleForm extends StatefulWidget {
-  const _ScheduleForm({required this.trip, required this.day, this.existing});
+  const _ScheduleForm({
+    required this.trip,
+    required this.day,
+    this.existing,
+    this.onChanged,
+  });
 
   final TripDetail trip;
   final DateTime day;
   final Schedule? existing;
+  final VoidCallback? onChanged;
 
   @override
   State<_ScheduleForm> createState() => _ScheduleFormState();
@@ -64,6 +233,8 @@ class _ScheduleFormState extends State<_ScheduleForm> {
       widget.existing?.endTime ?? const TimeOfDay(hour: 11, minute: 0);
   late ReservationStatus _reservation =
       widget.existing?.reservationStatus ?? ReservationStatus.none;
+  late TimeOfDay? _reservationTime = widget.existing?.reservationTime;
+  late String? _linkedExpenseId = widget.existing?.linkedExpenseId;
   late bool _locked = widget.existing?.isLocked ?? false;
   bool _busy = false;
   String? _error;
@@ -104,6 +275,52 @@ class _ScheduleFormState extends State<_ScheduleForm> {
         _error = null;
         _overlap = null;
       });
+    }
+  }
+
+  Future<void> _pickReservationTime() async {
+    final picked = await pickTime(context, _reservationTime ?? _start, '예약 시간');
+    if (picked != null) {
+      setState(() => _reservationTime = picked);
+    }
+  }
+
+  // BP-SC-002 ⑥ 예약 결제 정보 → 일정이 채워진 지출 입력
+  Future<void> _addPayment() async {
+    final saved = await Navigator.of(context).push<ExpenseDetail>(
+      MaterialPageRoute(
+        builder: (_) =>
+            ExpenseFormScreen(trip: widget.trip, fromSchedule: widget.existing),
+      ),
+    );
+    if (saved != null && mounted) {
+      setState(() => _linkedExpenseId = saved.id);
+      widget.onChanged?.call();
+      showSnack(context, '예약 결제를 공동 지출로 등록했어요.');
+    }
+  }
+
+  Future<void> _openLinkedExpense() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ExpenseDetailScreen(
+          trip: widget.trip,
+          expenseId: _linkedExpenseId!,
+        ),
+      ),
+    );
+  }
+
+  // BP-SC-002 ① 휴지통 → BP-SC-003 삭제 확인
+  Future<void> _delete() async {
+    final deleted = await confirmDeleteSchedule(
+      context,
+      trip: widget.trip,
+      schedule: widget.existing!,
+    );
+    if (deleted && mounted) {
+      widget.onChanged?.call();
+      Navigator.pop(context);
     }
   }
 
@@ -160,6 +377,9 @@ class _ScheduleFormState extends State<_ScheduleForm> {
           place: _place,
           memo: _memo.text.trim().isEmpty ? null : _memo.text.trim(),
           reservation: _reservation,
+          reservationTime: _reservation == ReservationStatus.none
+              ? null
+              : _reservationTime,
           locked: _locked,
         );
       } else {
@@ -187,6 +407,9 @@ class _ScheduleFormState extends State<_ScheduleForm> {
           place: _place,
           memo: _memo.text.trim(),
           reservation: _reservation,
+          reservationTime: _reservation == ReservationStatus.none
+              ? null
+              : _reservationTime,
           locked: _locked,
         );
       }
@@ -239,12 +462,27 @@ class _ScheduleFormState extends State<_ScheduleForm> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                _editing ? '일정 수정' : '일정 추가',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _editing ? '일정 수정' : '일정 추가',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (_editing)
+                    IconButton(
+                      tooltip: '일정 삭제',
+                      onPressed: _busy ? null : _delete,
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.error,
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 18),
               const FieldLabel('일정 이름', required: true),
@@ -299,6 +537,7 @@ class _ScheduleFormState extends State<_ScheduleForm> {
                       label: '시작',
                       time: _start,
                       onTap: _pickStart,
+                      error: overlap != null,
                     ),
                   ),
                   const Padding(
@@ -310,7 +549,7 @@ class _ScheduleFormState extends State<_ScheduleForm> {
                       label: '종료',
                       time: _end,
                       onTap: _pickEnd,
-                      error: !_timeValid,
+                      error: !_timeValid || overlap != null,
                     ),
                   ),
                 ],
@@ -348,27 +587,78 @@ class _ScheduleFormState extends State<_ScheduleForm> {
                 ),
               ],
               const SizedBox(height: 14),
-              const FieldLabel('예약'),
-              SegmentedButton<ReservationStatus>(
-                segments: const [
-                  ButtonSegment(
-                    value: ReservationStatus.none,
-                    label: Text('없음'),
-                  ),
-                  ButtonSegment(
-                    value: ReservationStatus.pending,
-                    label: Text('확인 중'),
-                  ),
-                  ButtonSegment(
-                    value: ReservationStatus.confirmed,
-                    label: Text('확정'),
-                  ),
-                ],
-                selected: {_reservation},
-                showSelectedIcon: false,
-                onSelectionChanged: (value) =>
-                    setState(() => _reservation = value.first),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _reservation != ReservationStatus.none,
+                onChanged: (on) => setState(() {
+                  _reservation = on
+                      ? ReservationStatus.before
+                      : ReservationStatus.none;
+                }),
+                title: const Text(
+                  '예약이 있어요',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                secondary: const Icon(Icons.event_available_outlined),
               ),
+              if (_reservation != ReservationStatus.none) ...[
+                OutlinedButton.icon(
+                  onPressed: _pickReservationTime,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    foregroundColor: AppColors.ink,
+                    side: const BorderSide(color: AppColors.border),
+                  ),
+                  icon: const Icon(Icons.schedule, size: 18),
+                  label: Text(
+                    _reservationTime == null
+                        ? '예약 시간 선택'
+                        : '예약 시간 ${Fmt.time(_reservationTime!)}',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SegmentedButton<ReservationStatus>(
+                  segments: const [
+                    ButtonSegment(
+                      value: ReservationStatus.before,
+                      label: Text('예약 전'),
+                    ),
+                    ButtonSegment(
+                      value: ReservationStatus.pending,
+                      label: Text('대기'),
+                    ),
+                    ButtonSegment(
+                      value: ReservationStatus.confirmed,
+                      label: Text('확정'),
+                    ),
+                  ],
+                  selected: {_reservation},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (value) =>
+                      setState(() => _reservation = value.first),
+                ),
+                const SizedBox(height: 4),
+                if (!_editing)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      '일정을 저장한 뒤 예약 결제를 공동 지출로 등록할 수 있어요',
+                      style: TextStyle(fontSize: 12, color: AppColors.muted),
+                    ),
+                  )
+                else if (_linkedExpenseId == null)
+                  TextButton.icon(
+                    onPressed: _addPayment,
+                    icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                    label: const Text('예약 결제 정보 입력'),
+                  )
+                else
+                  TextButton.icon(
+                    onPressed: _openLinkedExpense,
+                    icon: const Icon(Icons.link, size: 18),
+                    label: const Text('지출 연결됨 · 보기'),
+                  ),
+              ],
               const SizedBox(height: 6),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

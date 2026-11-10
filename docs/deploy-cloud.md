@@ -117,7 +117,7 @@ powershell -ExecutionPolicy Bypass -File tool\build-release-apk.ps1 -ApiBaseUrl 
 
 | 바꾼 것 | 다시 할 것 |
 |---|---|
-| 서버 (`backend/`) | 6번을 `-Domain` 없이: `scripts\deploy-cloud.ps1 -Server <IP>` (데이터 · `.env`는 그대로 남는다) |
+| 서버 (`backend/`) | 6번을 `-Domain` 없이: `scripts\deploy-cloud.ps1 -Server <IP>` (데이터 · `.env`는 그대로 남는다. MySQL · Redis · Caddy 이미지는 새로 받지 않는다) |
 | 앱 (`lib/`) | 8번을 다시 하고 새 APK를 나눠 준다 (서명 키가 같아 덮어 설치된다) |
 
 ## 10. 운영 메모
@@ -132,6 +132,9 @@ powershell -ExecutionPolicy Bypass -File tool\build-release-apk.ps1 -ApiBaseUrl 
 | 지금 백업 | `bash backup.sh` → `/var/backups/backpack/` (매일 자동, 14일 치 보관) |
 | 설정 바꾸기 | `nano .env` 고친 뒤 `docker compose up -d` |
 | 디스크 · 메모리 보기 | `df -h /` · `free -m` |
+| 느린 요청 보기 (2초 넘은 요청) | `docker compose logs --since 24h backend \| grep "느린 요청"` |
+| 컨테이너별 메모리 | `docker stats --no-stream` (배포가 끝날 때도 보여 준다) |
+| MySQL · Redis · Caddy를 새 판으로 올리기 | `bash backup.sh` 후 `df -m /`로 여유가 2000MB 넘는지 보고 `docker compose pull mysql redis caddy && docker compose up -d && docker image prune -f` |
 
 - **백업을 PC로 받기**: 백업은 서버 디스크에 있어 서버를 반납하면 함께 사라진다. 가끔 PC로 받아 둔다.
   `scp "root@<IP>:/var/backups/backpack/*" .`
@@ -147,7 +150,7 @@ powershell -ExecutionPolicy Bypass -File tool\build-release-apk.ps1 -ApiBaseUrl 
 | 증상 | 확인할 것 |
 |---|---|
 | `서버에 접속하지 못했어요` | 공인 IP, root 비밀번호(4번), ACG의 22번 규칙, 서버가 운영중인지 |
-| `디스크 여유가 …MB예요` | 서버 스토리지가 꽉 찼다. `docker system prune -af`로 안 쓰는 이미지를 지우거나 스토리지를 늘린다 (유료) |
+| `디스크 여유가 …MB예요` · 서버 로그에 `No space left on device` | 서버 스토리지가 꽉 찼다. `docker images`로 보고, 돌아가는 컨테이너(`docker compose ps`)가 쓰지 않는 이미지를 `docker rmi <이름:태그>`로 지운 뒤 `docker compose restart backend` (`docker system prune`은 태그가 붙은 이미지를 남길 때가 있다). 그래도 모자라면 스토리지를 늘린다 (유료) |
 | `5분이 지나도 응답이 없어요` + Caddy 로그에 `challenge failed` · `timeout` | 3번의 80 · 443 규칙, DuckDNS의 IP가 서버 공인 IP와 같은지 (`nslookup`) |
 | Caddy 로그에 `too many certificates` / `rateLimited` | Let's Encrypt가 같은 주소로 너무 자주 받아 잠시 막았다. 몇 시간 뒤 6번을 다시 실행 |
 | 서버 로그에 `OutOfMemoryError`, 자꾸 다시 시작됨 | `free -m`으로 스왑(2GB)이 있는지. 사용자가 많아지면 메모리 2GB 이상 서버로 옮긴다 (유료) |

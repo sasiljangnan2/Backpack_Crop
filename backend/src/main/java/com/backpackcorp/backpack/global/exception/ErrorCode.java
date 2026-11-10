@@ -93,6 +93,12 @@ public enum ErrorCode {
 	// Budget
 	BUDGET_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "예산 항목을 찾을 수 없습니다."),
 
+	// Fund (공금)
+	// 공금 잔액보다 큰 지출을 공금으로 내거나, 이미 쓴 공금보다 모은 돈을 줄일 때. details에 안내 문구를 담는다
+	FUND_INSUFFICIENT(HttpStatus.CONFLICT, "공금이 모자라요."),
+	FUND_CONTRIBUTION_NOT_FOUND(HttpStatus.NOT_FOUND, "공금 내역을 찾을 수 없습니다."),
+	NOT_FUND_EDITOR(HttpStatus.FORBIDDEN, "돈을 낸 사람, 입력한 사람, 방장만 수정할 수 있습니다."),
+
 	// Task
 	TASK_NOT_FOUND(HttpStatus.NOT_FOUND, "준비 업무를 찾을 수 없습니다."),
 	// 함께 할(TEAM) 업무는 만든 사람 · 담당자 · 방장만 지울 수 있다

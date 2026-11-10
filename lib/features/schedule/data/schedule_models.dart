@@ -6,7 +6,8 @@ import '../../trip/data/trip_models.dart';
 
 enum ScheduleStatus { planned, inProgress, done }
 
-enum ReservationStatus { none, pending, confirmed }
+/// 예약 없음 · 예약 전 · 대기 · 확정 (BP-SC-002 ⑤)
+enum ReservationStatus { none, before, pending, confirmed }
 
 class ScheduleActivity {
   const ScheduleActivity({
@@ -42,6 +43,8 @@ class Schedule {
     this.placeCategory,
     required this.isLocked,
     required this.reservationStatus,
+    this.reservationTime,
+    this.linkedExpenseId,
     required this.memo,
     this.replanned = false,
     required this.status,
@@ -72,6 +75,10 @@ class Schedule {
       json['reservationStatus'],
       ReservationStatus.none,
     ),
+    reservationTime: json['reservationTime'] == null
+        ? null
+        : time(json['reservationTime']),
+    linkedExpenseId: json['linkedExpenseId'] as String?,
     memo: json['memo'] as String?,
     replanned: json['replanned'] as bool? ?? false,
     status: enumOf(
@@ -99,6 +106,12 @@ class Schedule {
   final PlaceCategory? placeCategory;
   final bool isLocked;
   final ReservationStatus reservationStatus;
+
+  /// 예약 시간 (예약이 없으면 null)
+  final TimeOfDay? reservationTime;
+
+  /// 예약 결제 등으로 이어진 지출 ("지출 연결" 배지)
+  final String? linkedExpenseId;
   final String? memo;
 
   /// AI 재구성으로 바뀐 뒤 사람이 고치지 않은 일정 ("재구성" 배지)

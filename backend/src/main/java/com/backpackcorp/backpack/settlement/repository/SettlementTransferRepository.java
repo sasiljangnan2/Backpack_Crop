@@ -15,9 +15,9 @@ public interface SettlementTransferRepository extends JpaRepository<SettlementTr
 	// 저장한 순서 = 금액 큰 순
 	@Query("""
 		select t from SettlementTransfer t
-		join fetch t.fromMember f
+		left join fetch t.fromMember f
 		left join fetch f.user
-		join fetch t.toMember r
+		left join fetch t.toMember r
 		left join fetch r.user
 		where t.share.id in :shareIds
 		order by t.id

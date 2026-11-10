@@ -20,10 +20,16 @@ import jakarta.validation.constraints.Size;
 // 지출 등록·미리보기 요청.
 // 금액: rateMode가 KRW면 amountKrw, 그 외에는 amountLocal(여행 통화). MANUAL은 manualRate도 필요하다.
 // 분담: items에 항목과 분담자를 담는다. 균등 분담(EQUAL)은 items 대신 memberIds만 보내도 된다.
-// version: 수정(PUT)할 때만 필요하다. 조회 때 받은 값을 그대로 보낸다
+// version: 수정(PUT)할 때만 필요하다. 조회 때 받은 값을 그대로 보낸다.
+// paidFromFund: 공금에서 낸 지출이면 true. payerMemberId는 입력한 사람을 보낸다 (정산에서 낸 돈으로 치지 않는다).
+// scheduleId: 예약 결제처럼 일정과 잇는 지출 (선택)
 public record ExpenseRequest(
 	@NotNull(message = "결제자를 선택해 주세요.")
 	UUID payerMemberId,
+
+	Boolean paidFromFund,
+
+	UUID scheduleId,
 
 	@NotBlank(message = "내용을 입력해 주세요.")
 	@Size(max = 100, message = "내용은 100자 이하로 입력해 주세요.")

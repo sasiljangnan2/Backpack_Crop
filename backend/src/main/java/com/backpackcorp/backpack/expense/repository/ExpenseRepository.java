@@ -1,5 +1,6 @@
 package com.backpackcorp.backpack.expense.repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -66,14 +67,32 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 		""")
 	List<CategoryAmountDto> sumByCategory(@Param("tripId") UUID tripId);
 
-	// 정산: 멤버별로 낸 돈
+	// 정산: 멤버별로 낸 돈 (공금 지출은 멤버가 낸 돈이 아니다)
 	@Query("""
 		select new com.backpackcorp.backpack.expense.dto.MemberAmountDto(e.payer.id, sum(e.amountKrw))
 		from Expense e
-		where e.trip.id = :tripId
+		where e.trip.id = :tripId and e.paidFromFund = false
 		group by e.payer.id
 		""")
 	List<MemberAmountDto> sumPaidByMember(@Param("tripId") UUID tripId);
+
+	// 공금에서 낸 지출 합계. excludeId: 수정 중인 지출을 뺀다 (없으면 null)
+	@Query("""
+		select coalesce(sum(e.amountKrw), 0)
+		from Expense e
+		where e.trip.id = :tripId and e.paidFromFund = true
+		  and (:excludeId is null or e.id <> :excludeId)
+		""")
+	BigDecimal sumFundSpent(@Param("tripId") UUID tripId, @Param("excludeId") UUID excludeId);
+
+	// 일정에 이어진 지출: [일정 ID, 지출 ID]
+	@Query("""
+		select e.schedule.id, e.id
+		from Expense e
+		where e.trip.id = :tripId and e.schedule is not null
+		order by e.id
+		""")
+	List<Object[]> findScheduleLinks(@Param("tripId") UUID tripId);
 
 	// 계산 근거: 내가 결제했거나 분담한 지출 (최근 결제일순)
 	@Query("""
@@ -81,7 +100,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 		join fetch e.payer p
 		left join fetch p.user
 		where e.trip.id = :tripId
-		  and (e.payer.id = :memberId or exists (
+		  and ((e.paidFromFund = false and e.payer.id = :memberId) or exists (
 		    select 1 from ExpenseItemUser u where u.item.expense = e and u.member.id = :memberId))
 		order by e.paidDate desc, e.id desc
 		""")

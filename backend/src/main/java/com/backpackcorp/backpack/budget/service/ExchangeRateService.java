@@ -49,11 +49,21 @@ public class ExchangeRateService {
 			.orElseThrow(() -> BaseException.of(ErrorCode.EXCHANGE_RATE_NOT_FOUND, "currencyCode", currencyCode));
 	}
 
-	// 화면 보조 정보(지출 목록의 "오늘 환율")처럼 없어도 되는 곳에서 쓴다
+	// 화면 보조 정보(지출 목록 · 예산의 "오늘 환율")처럼 없어도 되는 곳에서 쓴다.
+	// 오늘 값이 아직 없으면(주말 · 공휴일 · 고시 전 아침) 외부 출처를 기다리지 않고 저장된 가장 최근 값을 주고,
+	// 오늘 값은 뒤에서 가져온다. 기다리면 화면을 열 때마다 외부 API 셋(최대 18초)을 차례로 기다릴 수 있다
 	public Optional<ExchangeRateResponse> findTodayRate(String currencyCode) {
 		LocalDate today = today();
-		return findRateOrEmpty(currencyCode, today)
-			.map(rate -> ExchangeRateResponse.of(rate, today, displayUnit(currencyCode)));
+		Optional<AppliedRate> stored = KRW.equals(currencyCode) ? Optional.empty() : latestStored(currencyCode, today);
+		if (stored.isEmpty()) {
+			// 원화이거나 처음 쓰는 통화: 보여 줄 값이 없으니 기다려서 가져온다
+			return findRateOrEmpty(currencyCode, today)
+				.map(rate -> ExchangeRateResponse.of(rate, today, displayUnit(currencyCode)));
+		}
+		if (!stored.get().rateDate().equals(today)) {
+			exchangeRateCollector.collectLater(currencyCode, today);
+		}
+		return stored.map(rate -> ExchangeRateResponse.of(rate, today, displayUnit(currencyCode)));
 	}
 
 	public LocalDate today() {
@@ -68,10 +78,7 @@ public class ExchangeRateService {
 		}
 		LocalDate today = today();
 		LocalDate lookup = date.isAfter(today) ? today : date;
-		Optional<AppliedRate> stored = exchangeRateRepository
-			.findFirstByCurrencyCodeAndRateDateLessThanEqualOrderByRateDateDesc(currencyCode, lookup)
-			.map(rate -> new AppliedRate(rate.getCurrencyCode(), rate.getRateToKrw(), rate.getRateDate(),
-				rate.getFetchedAt()));
+		Optional<AppliedRate> stored = latestStored(currencyCode, lookup);
 		if (stored.isPresent() && stored.get().rateDate().equals(lookup)) {
 			return stored;
 		}
@@ -80,6 +87,14 @@ public class ExchangeRateService {
 			return fetched;
 		}
 		return stored;
+	}
+
+	// 그 날짜이거나 그보다 이른 날짜 중 가장 최근에 저장된 값
+	private Optional<AppliedRate> latestStored(String currencyCode, LocalDate date) {
+		return exchangeRateRepository
+			.findFirstByCurrencyCodeAndRateDateLessThanEqualOrderByRateDateDesc(currencyCode, date)
+			.map(rate -> new AppliedRate(rate.getCurrencyCode(), rate.getRateToKrw(), rate.getRateDate(),
+				rate.getFetchedAt()));
 	}
 
 	private static String normalize(String currencyCode) {

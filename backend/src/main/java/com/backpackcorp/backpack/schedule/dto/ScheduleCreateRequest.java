@@ -43,6 +43,9 @@ public record ScheduleCreateRequest(
 
 	ReservationStatus reservationStatus,
 
+	// 예약 시간 (선택). 예약이 없으면(NONE) 저장하지 않는다
+	LocalTime reservationTime,
+
 	@Size(max = 500, message = "메모는 500자 이하로 입력해 주세요.")
 	String memo,
 

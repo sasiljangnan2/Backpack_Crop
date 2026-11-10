@@ -93,6 +93,11 @@ public class Poll extends BaseCreatedEntity {
 		return status == PollStatus.OPEN && (deadlineAt == null || deadlineAt.isAfter(now));
 	}
 
+	// 여행 기간을 옮길 때 반영할 날짜도 같이 옮긴다
+	public void moveSlot(LocalDate slotDate) {
+		this.slotDate = slotDate;
+	}
+
 	// selectedOption · schedule은 일정 없이 마감하면 null
 	public void close(PollOption selectedOption, Schedule schedule, Instant now) {
 		this.status = PollStatus.CLOSED;

@@ -61,7 +61,8 @@ import lombok.extern.slf4j.Slf4j;
 
 // BP-AI-002 · 003 오늘 남은 일정 다시 짜기.
 //   다시 짤 구간: 지금(또는 진행 중인 다른 일정이 끝나는 시각) ~ 그 뒤 처음 나오는 그대로 둘 일정(anchor, 보통 고정 일정)
-//   추천: Gemini 키가 있으면 AI가 고른 순서 · 장소를 실제 이동 시간으로 다시 맞추고, 없거나 실패하면 규칙 기반 3안
+//   추천: Gemini 키가 있으면 AI가 고른 순서 · 장소를 실제 이동 시간으로 다시 맞추고, 없거나 실패하면 규칙 기반 3안.
+//         그중 서로 같은 안 · 지금 일정과 같은 안은 빼고 보여 준다 (PlanFilter)
 //   적용: 추천 뒤 그날 일정이 바뀌지 않았을 때만 (버전 비교). 빠지는 일정은 지우고, 바뀐 일정에는 "재구성" 표시
 @Slf4j
 @Service
@@ -145,6 +146,16 @@ public class ReplanService {
 				Thread.currentThread().interrupt();
 				notice = "AI 응답을 받지 못해 기본 추천을 보여 드려요.";
 			}
+		}
+		// 같은 안은 하나로, 지금 일정과 같은 안은 빼서 보여 줄 만한 안만 남긴다 (0~3개)
+		int made = plans.size();
+		plans = PlanFilter.distinct(plans, prepared.current());
+		if (plans.isEmpty()) {
+			notice = "바꿀 만한 추천안이 없어요. 지금 일정이 이미 고른 조건에 잘 맞아요."
+				+ (aiPlanner.available() && source == ReplanResponse.Source.RULE ? " (AI 응답은 받지 못했어요)" : "");
+		} else if (plans.size() < made) {
+			String merged = "겹치거나 지금 일정과 같은 안은 빼고 " + plans.size() + "안만 보여 드려요.";
+			notice = notice == null ? merged : notice + " " + merged;
 		}
 		ReplanResponse response = new ReplanResponse(UUID.randomUUID(), source, notice, prepared.context(), plans);
 		cache().put(response.requestId(), new Snapshot(tripId, prepared.day(), prepared.versions(),
@@ -316,7 +327,10 @@ public class ReplanService {
 			activities.size(), delay, anchorView);
 		AiPlanner.Context aiContext = new AiPlanner.Context(trip.getDestination(), now.toString(),
 			windowStart.toString(), windowEnd.toString(), originName, origin, anchorStop, stops, conditions);
-		return new Prepared(today, input, context, aiContext, versionsOf(day), List.copyOf(targetIds));
+		List<PlanFilter.Current> before = targets.stream()
+			.map(s -> new PlanFilter.Current(s.getId(), s.getStartTime(), s.getEndTime()))
+			.toList();
+		return new Prepared(today, input, context, aiContext, versionsOf(day), List.copyOf(targetIds), before);
 	}
 
 	private static Stop stopOf(Schedule s) {
@@ -364,7 +378,8 @@ public class ReplanService {
 		ReplanResponse.Context context,
 		AiPlanner.Context aiContext,
 		HashMap<UUID, Integer> versions,
-		List<UUID> targetIds
+		List<UUID> targetIds,
+		List<PlanFilter.Current> current
 	) {
 	}
 
