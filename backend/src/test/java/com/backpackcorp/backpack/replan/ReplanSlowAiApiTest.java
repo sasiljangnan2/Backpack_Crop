@@ -55,7 +55,8 @@ class ReplanSlowAiApiTest extends ApiTestSupport {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.source").value("RULE"))
 			.andExpect(jsonPath("$.notice").value("AI 응답이 늦어 기본 추천을 보여 드려요."))
-			.andExpect(jsonPath("$.plans.length()").value(3));
+			// 다시 짤 일정이 하나뿐이라 기본 추천 세 안이 모두 같은 순서다. 같은 안은 한 번만 보낸다
+			.andExpect(jsonPath("$.plans.length()").value(1));
 
 		assertThat(System.currentTimeMillis() - started).isLessThan(4_000);
 	}

@@ -27,7 +27,8 @@ import com.backpackcorp.backpack.replan.service.Stop;
 import com.backpackcorp.backpack.support.ApiTestSupport;
 import com.jayway.jsonpath.JsonPath;
 
-// AI가 같은 곳을 같은 순서로 들르는 안을 두 번 내도 앱에는 서로 다른 3안이 간다.
+// 같은 곳을 같은 순서로 들르는 안은 앱에 한 번만 간다. AI 안이 겹치면 규칙 기반 안으로 바꾸고, 그것도 겹치면 뺀다
+// (그래서 2안 이하일 수 있다). AI 키가 없거나 AI가 실패해 규칙 기반 안만 보낼 때도 같다.
 // 지금은 2026-10-03 14:50 (오사카). 고정 일정 21:00 전까지 세 곳을 다시 짠다
 @SpringBootTest(properties = "app.demo.now=2026-10-03T05:50:00Z")
 @ActiveProfiles("test")
@@ -109,6 +110,32 @@ class ReplanAiMergeApiTest extends ApiTestSupport {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.source").value("RULE"))
 			.andExpect(jsonPath("$.notice").value("AI 추천이 시간에 맞지 않아 기본 추천을 보여 드려요."))
+			.andExpect(jsonPath("$.plans.length()").value(2));
+	}
+
+	@Test
+	void AI_키가_없어_규칙_기반_안만_보낼_때도_겹치는_안은_뺀다(CapturedOutput output) throws Exception {
+		// 위 테스트와 같은 일정: 규칙 기반 여유 안이 조건 안(원래 순서)과 같다
+		when(aiPlanner.available()).thenReturn(false);
+
+		recommend()
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.source").value("RULE"))
+			.andExpect(jsonPath("$.notice").value("AI 키가 설정되지 않아 기본 추천으로 만들었어요."))
+			.andExpect(jsonPath("$.plans.length()").value(2))
+			.andExpect(jsonPath("$.plans[0].key").value("CONDITION"))
+			.andExpect(jsonPath("$.plans[1].key").value("MIN_TRAVEL"));
+		assertThat(output).contains("'시간 여유 우선' 안이 앞의 안과 같은 순서라 빼고 보냄");
+	}
+
+	@Test
+	void AI가_실패해_규칙_기반_안으로_대신할_때도_겹치는_안은_뺀다() throws Exception {
+		when(aiPlanner.suggest(any())).thenThrow(new IllegalStateException("AI 서버 오류"));
+
+		recommend()
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.source").value("RULE"))
+			.andExpect(jsonPath("$.notice").value("AI 응답을 받지 못해 기본 추천을 보여 드려요."))
 			.andExpect(jsonPath("$.plans.length()").value(2));
 	}
 

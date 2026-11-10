@@ -61,7 +61,8 @@ import lombok.extern.slf4j.Slf4j;
 
 // BP-AI-002 · 003 오늘 남은 일정 다시 짜기.
 //   다시 짤 구간: 지금(또는 진행 중인 다른 일정이 끝나는 시각) ~ 그 뒤 처음 나오는 그대로 둘 일정(anchor, 보통 고정 일정)
-//   추천: Gemini 키가 있으면 AI가 고른 순서 · 장소를 실제 이동 시간으로 다시 맞추고, 없거나 실패하면 규칙 기반 3안
+//   추천: Gemini 키가 있으면 AI가 고른 순서 · 장소를 실제 이동 시간으로 다시 맞추고, 없거나 실패하면 규칙 기반 3안.
+//         같은 순서의 안은 한 번만 보내므로 1~3안
 //   적용: 추천 뒤 그날 일정이 바뀌지 않았을 때만 (버전 비교). 빠지는 일정은 지우고, 바뀐 일정에는 "재구성" 표시
 @Slf4j
 @Service
@@ -147,6 +148,8 @@ public class ReplanService {
 				notice = "AI 응답을 받지 못해 기본 추천을 보여 드려요.";
 			}
 		}
+		// 규칙 기반 안끼리도 같은 순서일 수 있다. 키가 없거나 AI가 실패해 규칙 기반 안을 보낼 때도 같은 안은 한 번만 보낸다
+		plans = withoutRepeats(plans);
 		ReplanResponse response = new ReplanResponse(UUID.randomUUID(), source, notice, prepared.context(), plans);
 		cache().put(response.requestId(), new Snapshot(tripId, prepared.day(), prepared.versions(),
 			prepared.targetIds(), response));
@@ -192,6 +195,19 @@ public class ReplanService {
 			fitted = RulePlanner.fit(key, draft.stops(), input, travel, true, draft.reason());
 		}
 		return RulePlanner.withDropped(fitted, input);
+	}
+
+	// 앞의 안과 같은 곳을 같은 순서로 들르는 안을 뺀다. 첫 안은 항상 남는다
+	static List<ReplanResponse.Plan> withoutRepeats(List<ReplanResponse.Plan> plans) {
+		List<ReplanResponse.Plan> kept = new ArrayList<>();
+		for (ReplanResponse.Plan plan : plans) {
+			if (sameRouteAsAny(plan, kept)) {
+				log.info("'{}' 안이 앞의 안과 같은 순서라 빼고 보냄", plan.label());
+				continue;
+			}
+			kept.add(plan);
+		}
+		return kept;
 	}
 
 	private static boolean sameRouteAsAny(ReplanResponse.Plan plan, List<ReplanResponse.Plan> others) {
