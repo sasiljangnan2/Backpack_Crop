@@ -94,6 +94,32 @@ class ExchangeRateProviderTest {
 		verify(repository, never()).save(any(ExchangeRate.class));
 	}
 
+	@Test
+	void 뒤에서_가져오기는_요청이_몰려도_한_번만_묻고_기다리지_않는다() throws Exception {
+		java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+		java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+		ExchangeRateProvider slow = mock(ExchangeRateProvider.class);
+		when(slow.name()).thenReturn("slow");
+		when(slow.fetch(any(), any())).thenAnswer(call -> {
+			calls.incrementAndGet();
+			release.await();
+			return Optional.of(new ExchangeRateProvider.FetchedRate(SATURDAY, BigDecimal.TEN));
+		});
+		ExchangeRateRepository repository = repository();
+		ExchangeRateCollector collector = collector(List.of(slow), repository);
+
+		long started = System.nanoTime();
+		for (int i = 0; i < 5; i++) {
+			collector.collectLater("JPY", SATURDAY);
+		}
+		// 외부 출처가 답하지 않아도 바로 돌아온다
+		assertThat(java.time.Duration.ofNanos(System.nanoTime() - started)).isLessThan(java.time.Duration.ofSeconds(1));
+
+		release.countDown();
+		verify(repository, org.mockito.Mockito.timeout(2_000)).save(any(ExchangeRate.class));
+		assertThat(calls.get()).isEqualTo(1);
+	}
+
 	private static ExchangeRateProvider provider(String name, Optional<ExchangeRateProvider.FetchedRate> result) {
 		ExchangeRateProvider provider = mock(ExchangeRateProvider.class);
 		when(provider.name()).thenReturn(name);

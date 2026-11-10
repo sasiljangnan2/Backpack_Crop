@@ -15,12 +15,21 @@ import 'token_storage.dart';
 /// - 액세스 토큰이 만료되면(`TOKEN_EXPIRED`) 리프레시 토큰으로 한 번만 재발급하고 다시 보낸다.
 ///   동시에 여러 요청이 만료돼도 재발급은 한 번만 한다.
 /// - 재발급도 실패하면 [onSessionExpired]를 불러 로그인 화면으로 보낸다.
+/// - 조회(GET)는 연결이 끊기거나(오래 쉰 뒤 끊긴 연결, 서버 재시작 중) 앞단이 서버를 잠깐 못 찾으면
+///   (502 · 503 · 504) 조금 기다렸다가 두 번까지 다시 보낸다. 다른 요청은 두 번 처리될 수 있어 다시 보내지 않는다.
 class ApiClient {
   ApiClient({required this.tokens, http.Client? client, String? baseUrl})
     : _http = client ?? http.Client(),
       baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
 
   static const _timeout = Duration(seconds: 15);
+
+  /// 조회를 다시 보내기 전에 기다리는 시간 (시험에서는 0으로 줄인다)
+  @visibleForTesting
+  static List<Duration> retryDelays = const [
+    Duration(milliseconds: 500),
+    Duration(milliseconds: 1500),
+  ];
 
   final TokenStorage tokens;
   final http.Client _http;
@@ -70,7 +79,7 @@ class ApiClient {
     Duration? timeout,
     (String, String)? file,
   }) async {
-    final response = await _raw(
+    final response = await _rawWithRetry(
       method,
       path,
       query,
@@ -106,6 +115,44 @@ class ApiClient {
     }
     return jsonDecode(utf8.decode(response.bodyBytes));
   }
+
+  // 응답이 늦은 것(시간 초과)은 서버가 바쁘다는 뜻이라 다시 보내면 더 기다리게 되므로 다시 보내지 않는다
+  Future<http.Response> _rawWithRetry(
+    String method,
+    String path,
+    Map<String, Object?>? query,
+    Object? body,
+    bool auth,
+    Duration timeout, {
+    (String, String)? file,
+  }) async {
+    final retryable = method == 'GET' && file == null;
+    for (var attempt = 0; ; attempt++) {
+      final last = !retryable || attempt >= retryDelays.length;
+      try {
+        final response = await _raw(
+          method,
+          path,
+          query,
+          body,
+          auth,
+          timeout,
+          file: file,
+        );
+        if (last || !_isGatewayError(response.statusCode)) {
+          return response;
+        }
+      } on ApiException catch (e) {
+        if (last || e.code != 'NETWORK') {
+          rethrow;
+        }
+      }
+      await Future<void>.delayed(retryDelays[attempt]);
+    }
+  }
+
+  static bool _isGatewayError(int status) =>
+      status == 502 || status == 503 || status == 504;
 
   Future<http.Response> _raw(
     String method,

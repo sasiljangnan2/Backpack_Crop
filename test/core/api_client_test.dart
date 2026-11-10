@@ -139,4 +139,65 @@ void main() {
 
     expect(seen.toString(), 'http://test/api/x?a=1');
   });
+
+  group('조회 다시 보내기', () {
+    setUp(() => ApiClient.retryDelays = const [Duration.zero, Duration.zero]);
+
+    test('끊긴 연결 · 502는 조회만 두 번까지 다시 보낸다', () async {
+      var calls = 0;
+      final api = ApiClient(
+        tokens: TokenStorage(),
+        baseUrl: 'http://test',
+        client: MockClient((request) async {
+          calls++;
+          if (calls == 1) {
+            throw http.ClientException('Connection closed before full header');
+          }
+          if (calls == 2) {
+            return http.Response('', 502);
+          }
+          return json(200, {'ok': true});
+        }),
+      );
+
+      expect(await api.get('/api/trips'), {'ok': true});
+      expect(calls, 3);
+    });
+
+    test('세 번 다 끊기면 NETWORK 오류다', () async {
+      var calls = 0;
+      final api = ApiClient(
+        tokens: TokenStorage(),
+        baseUrl: 'http://test',
+        client: MockClient((request) async {
+          calls++;
+          throw http.ClientException('down');
+        }),
+      );
+
+      await expectLater(
+        api.get('/api/trips'),
+        throwsA(isA<ApiException>().having((e) => e.code, 'code', 'NETWORK')),
+      );
+      expect(calls, 3);
+    });
+
+    test('저장 요청은 두 번 처리될 수 있어 다시 보내지 않는다', () async {
+      var calls = 0;
+      final api = ApiClient(
+        tokens: TokenStorage(),
+        baseUrl: 'http://test',
+        client: MockClient((request) async {
+          calls++;
+          return http.Response('', 503);
+        }),
+      );
+
+      await expectLater(
+        api.post('/api/trips', body: {}),
+        throwsA(isA<ApiException>()),
+      );
+      expect(calls, 1);
+    });
+  });
 }
