@@ -11,6 +11,10 @@ public record MemberRef(
 	String name
 ) {
 
+	// 공금을 사람처럼 보여 주는 자리 (공금 지출의 결제자 · 남은 공금 송금의 상대)
+	public static final UUID FUND_ID = new UUID(0, 0);
+	public static final MemberRef FUND = new MemberRef(FUND_ID, "공금");
+
 	public static MemberRef from(TripMember member) {
 		return new MemberRef(member.getId(), nameOf(member));
 	}

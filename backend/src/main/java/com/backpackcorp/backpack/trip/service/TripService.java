@@ -8,6 +8,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.Currency;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -26,6 +27,10 @@ import com.backpackcorp.backpack.notification.domain.NotificationRefType;
 import com.backpackcorp.backpack.notification.domain.NotificationType;
 import com.backpackcorp.backpack.notification.dto.TripNotificationEvent;
 import com.backpackcorp.backpack.expense.dto.MemberRef;
+import com.backpackcorp.backpack.poll.domain.Poll;
+import com.backpackcorp.backpack.poll.domain.PollStatus;
+import com.backpackcorp.backpack.poll.repository.PollRepository;
+import com.backpackcorp.backpack.schedule.domain.Schedule;
 import com.backpackcorp.backpack.schedule.repository.ScheduleRepository;
 import com.backpackcorp.backpack.trip.domain.Trip;
 import com.backpackcorp.backpack.trip.domain.TripMember;
@@ -61,6 +66,7 @@ public class TripService {
 	private final TripMemberRepository tripMemberRepository;
 	private final UserRepository userRepository;
 	private final ScheduleRepository scheduleRepository;
+	private final PollRepository pollRepository;
 	private final ExpenseRepository expenseRepository;
 	private final TripMemberGuard tripMemberGuard;
 	private final InviteCodeGenerator inviteCodeGenerator;
@@ -132,11 +138,10 @@ public class TripService {
 			LocalDate start = request.startDate() != null ? request.startDate() : trip.getStartDate();
 			LocalDate end = request.endDate() != null ? request.endDate() : trip.getEndDate();
 			validatePeriod(start, end);
-			long outside = scheduleRepository.countOutside(tripId, start, end);
-			if (outside > 0) {
-				throw BaseException.of(ErrorCode.TRIP_PERIOD_CONFLICT, "scheduleCount", String.valueOf(outside));
+			if (!start.equals(trip.getStartDate()) || !end.equals(trip.getEndDate())) {
+				changePeriod(me, start, end, Boolean.TRUE.equals(request.moveSchedules()),
+					Boolean.TRUE.equals(request.dropOutside()));
 			}
-			trip.changePeriod(start, end);
 		}
 		if (request.currencyCode() != null) {
 			String currency = currency(request.currencyCode());
@@ -256,6 +261,56 @@ public class TripService {
 		}
 		// 1조 가지 중 10번 연속 충돌은 사실상 일어나지 않는다. 일어나면 생성기 문제다
 		throw new IllegalStateException("초대 코드를 만들지 못했습니다");
+	}
+
+	// 여행 날짜가 바뀐 경우: moveSchedules면 일정 · 투표를 출발일이 바뀐 날 수만큼 옮겨 DAY 번호를 지킨다.
+	// 그래도 새 기간 밖에 남는 일정 · 진행 중 투표는 dropOutside일 때만 지우고, 아니면 날짜 · 개수를 409로 알려 준다
+	private void changePeriod(TripMember me, LocalDate start, LocalDate end, boolean moveSchedules,
+		boolean dropOutside) {
+		Trip trip = me.getTrip();
+		long shift = moveSchedules ? ChronoUnit.DAYS.between(trip.getStartDate(), start) : 0;
+		List<Schedule> schedules = scheduleRepository.findByTrip(trip.getId(), null);
+		List<Poll> polls = pollRepository.findByTrip(trip.getId());
+		// 옮긴 뒤의 날짜로 먼저 따져 보고, 막힐 일이 없을 때만 바꾼다
+		List<Schedule> outside = schedules.stream()
+			.filter(s -> !within(s.getDay().plusDays(shift), start, end))
+			.toList();
+		List<Poll> openOutside = polls.stream()
+			.filter(p -> p.getStatus() == PollStatus.OPEN && !within(p.getSlotDate().plusDays(shift), start, end))
+			.toList();
+		if (!outside.isEmpty() || !openOutside.isEmpty()) {
+			if (!dropOutside) {
+				Map<String, String> details = new LinkedHashMap<>();
+				details.put("scheduleCount", String.valueOf(outside.size()));
+				details.put("pollCount", String.valueOf(openOutside.size()));
+				details.put("days", outside.stream().map(s -> s.getDay().plusDays(shift)).distinct().sorted()
+					.map(TripService::monthDay).collect(Collectors.joining(", ")));
+				throw new BaseException(ErrorCode.TRIP_PERIOD_CONFLICT, details);
+			}
+			// 활동 기록은 일정과 함께(ON DELETE CASCADE), 투표 · 지출의 연결은 끊긴다(ON DELETE SET NULL)
+			scheduleRepository.deleteAll(outside);
+			pollRepository.deleteAll(openOutside);
+		}
+		if (shift != 0) {
+			schedules.stream().filter(s -> !outside.contains(s))
+				.forEach(s -> s.changeTime(s.getDay().plusDays(shift), s.getStartTime(), s.getEndTime()));
+			polls.stream().filter(p -> !openOutside.contains(p))
+				.forEach(p -> p.moveSlot(p.getSlotDate().plusDays(shift)));
+		}
+		trip.changePeriod(start, end);
+
+		String message = MemberRef.nameOf(me) + "님이 여행 기간을 " + monthDay(start) + " ~ " + monthDay(end)
+			+ "로 바꿨어요" + (shift != 0 && !schedules.isEmpty() ? " (일정도 함께 옮겼어요)" : "");
+		eventPublisher.publishEvent(TripNotificationEvent.of(trip, me, NotificationType.SCHEDULE_CHANGED, message,
+			NotificationRefType.TRIP, trip.getId()));
+	}
+
+	private static boolean within(LocalDate day, LocalDate start, LocalDate end) {
+		return !day.isBefore(start) && !day.isAfter(end);
+	}
+
+	private static String monthDay(LocalDate day) {
+		return day.getMonthValue() + "." + String.format("%02d", day.getDayOfMonth());
 	}
 
 	private static void validatePeriod(LocalDate start, LocalDate end) {

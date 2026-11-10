@@ -33,6 +33,7 @@ class _ScheduleMapScreenState extends State<ScheduleMapScreen> {
   String? _selectedId;
   LatLng? _me;
   bool _tilesFailed = false;
+  bool _listOpen = false;
 
   TripDetail get trip => widget.trip;
 
@@ -217,18 +218,19 @@ class _ScheduleMapScreenState extends State<ScheduleMapScreen> {
                             ),
                           ),
                         ),
-                      Positioned(
-                        right: 16,
-                        bottom: _selectedId == null ? 168 : 232,
-                        child: FloatingActionButton.small(
-                          heroTag: 'me',
-                          tooltip: '내 위치',
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.success,
-                          onPressed: _goToMe,
-                          child: const Icon(Icons.my_location),
+                      if (!_listOpen || _selectedId != null)
+                        Positioned(
+                          right: 16,
+                          bottom: _selectedId == null ? 168 : 232,
+                          child: FloatingActionButton.small(
+                            heroTag: 'me',
+                            tooltip: '내 위치',
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppColors.success,
+                            onPressed: _goToMe,
+                            child: const Icon(Icons.my_location),
+                          ),
                         ),
-                      ),
                       Positioned(
                         left: 0,
                         right: 0,
@@ -238,6 +240,9 @@ class _ScheduleMapScreenState extends State<ScheduleMapScreen> {
                                 schedules: schedules,
                                 route: _route,
                                 dayNo: dayNo,
+                                open: _listOpen,
+                                onToggle: (open) =>
+                                    setState(() => _listOpen = open),
                                 onSelect: _select,
                               )
                             : _PlaceCard(
@@ -305,22 +310,48 @@ class _Panel extends StatelessWidget {
   }
 }
 
-/// 하단 요약: 총 이동 거리 · 시간 + 장소 순서 칩
+/// 하단 요약: 총 이동 거리 · 시간 + 장소 순서 칩. 위로 끌어 올리면 일정 목록 (스토리보드 BP-SC-004 ④)
 class _Summary extends StatelessWidget {
   const _Summary({
     required this.schedules,
     required this.route,
     required this.dayNo,
+    required this.open,
+    required this.onToggle,
     required this.onSelect,
   });
 
   final List<Schedule> schedules;
   final DayRoute route;
   final int dayNo;
+  final bool open;
+  final ValueChanged<bool> onToggle;
   final ValueChanged<String> onSelect;
+
+  Color _pinColor(Schedule schedule) => schedule.isLocked
+      ? AppColors.ink
+      : schedule.status == ScheduleStatus.done
+      ? AppColors.disabled
+      : AppColors.day(dayNo);
 
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: open ? null : () => onToggle(true),
+      onVerticalDragEnd: (details) {
+        final speed = details.primaryVelocity ?? 0;
+        if (speed < -100) {
+          onToggle(true);
+        } else if (speed > 100) {
+          onToggle(false);
+        }
+      },
+      child: _buildPanel(context),
+    );
+  }
+
+  Widget _buildPanel(BuildContext context) {
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -358,40 +389,86 @@ class _Summary extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 36,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (var i = 0; i < schedules.length; i++)
-                  if (schedules[i].hasPlace)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ActionChip(
-                        avatar: CircleAvatar(
-                          backgroundColor: schedules[i].isLocked
-                              ? AppColors.ink
-                              : schedules[i].status == ScheduleStatus.done
-                              ? AppColors.disabled
-                              : AppColors.day(dayNo),
-                          child: Text(
-                            '${i + 1}',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        label: Text(
-                          schedules[i].title,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onPressed: () => onSelect(schedules[i].id),
+          if (open)
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * .38,
+              ),
+              child: ListView(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                children: [
+                  for (var i = 0; i < schedules.length; i++)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      onTap: schedules[i].hasPlace
+                          ? () => onSelect(schedules[i].id)
+                          : null,
+                      leading: CircleAvatar(
+                        radius: 12,
+                        backgroundColor: _pinColor(schedules[i]),
+                        child: schedules[i].isLocked
+                            ? const Icon(
+                                Icons.lock_outline,
+                                size: 13,
+                                color: Colors.white,
+                              )
+                            : Text(
+                                '${i + 1}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                      title: Text(
+                        schedules[i].title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        '${Fmt.time(schedules[i].startTime)}–${Fmt.time(schedules[i].endTime)}'
+                        '${schedules[i].hasPlace ? (schedules[i].placeText == null ? '' : ' · ${schedules[i].placeText}') : ' · 장소 없음'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-              ],
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (var i = 0; i < schedules.length; i++)
+                    if (schedules[i].hasPlace)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ActionChip(
+                          avatar: CircleAvatar(
+                            backgroundColor: _pinColor(schedules[i]),
+                            child: Text(
+                              '${i + 1}',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          label: Text(
+                            schedules[i].title,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onPressed: () => onSelect(schedules[i].id),
+                        ),
+                      ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -564,13 +641,15 @@ class _PlaceCard extends StatelessWidget {
               Expanded(
                 child: FilledButton.icon(
                   onPressed: () async {
+                    var changed = false;
                     final saved = await showScheduleForm(
                       context,
                       trip: trip,
                       day: schedule.day,
                       existing: schedule,
+                      onChanged: () => changed = true,
                     );
-                    if (saved != null) {
+                    if (saved != null || changed) {
                       onEdited();
                     }
                   },

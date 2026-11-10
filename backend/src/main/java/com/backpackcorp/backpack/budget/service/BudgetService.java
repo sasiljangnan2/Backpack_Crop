@@ -20,6 +20,7 @@ import com.backpackcorp.backpack.budget.repository.BudgetItemRepository;
 import com.backpackcorp.backpack.expense.domain.ExpenseCategory;
 import com.backpackcorp.backpack.expense.dto.CategoryAmountDto;
 import com.backpackcorp.backpack.expense.repository.ExpenseRepository;
+import com.backpackcorp.backpack.fund.service.FundService;
 import com.backpackcorp.backpack.global.exception.BaseException;
 import com.backpackcorp.backpack.global.exception.ErrorCode;
 import com.backpackcorp.backpack.trip.domain.Trip;
@@ -40,6 +41,7 @@ public class BudgetService {
 	private final BudgetItemRepository budgetItemRepository;
 	private final ExpenseRepository expenseRepository;
 	private final ExchangeRateService exchangeRateService;
+	private final FundService fundService;
 
 	public BudgetResponse getBudget(UUID tripId, UUID userId) {
 		TripMember me = tripMemberGuard.requireMember(tripId, userId);
@@ -74,7 +76,7 @@ public class BudgetService {
 		int members = (int)tripMemberRepository.countByTripIdAndLeftAtIsNull(tripId);
 		long perPerson = members == 0 ? 0 : Math.ceilDiv(totalBudget, members);
 		return new BudgetResponse(items, summary, totalBudget, totalSpent, members, perPerson,
-			trip.getCurrencyCode(), todayRate, unconverted);
+			trip.getCurrencyCode(), todayRate, unconverted, fundService.fundOf(me));
 	}
 
 	@Transactional

@@ -16,8 +16,13 @@ class MemberRef {
   static MemberRef? fromJsonOrNull(Object? json) =>
       json == null ? null : MemberRef.fromJson(json as Json);
 
+  /// 공금을 사람처럼 보여 줄 때의 자리 (공금 지출의 결제자 · 남은 공금 송금의 상대)
+  static const fundId = '00000000-0000-0000-0000-000000000000';
+
   final String memberId;
   final String name;
+
+  bool get isFund => memberId == fundId;
 
   /// 아바타에 쓰는 첫 글자
   String get initial => name.isEmpty ? '?' : name.characters.first;

@@ -169,6 +169,28 @@ class _ReplanScreenState extends State<ReplanScreen> {
         return;
       }
       setState(() => _phase = _Phase.form);
+      // 서버가 같은 안 · 지금 일정과 같은 안을 빼서, 남은 안이 없을 수 있다
+      if (result.plans.isEmpty) {
+        final reason = (result.notice ?? '지금 일정이 이미 고른 조건에 잘 맞아요.')
+            .replaceFirst('바꿀 만한 추천안이 없어요. ', '');
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('바꿀 만한 추천안이 없어요'),
+            content: Text(
+              '$reason\n조건을 바꾸거나 다시 짤 일정을 더 골라 보세요.',
+              style: const TextStyle(height: 1.5),
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
       final outcome = await Navigator.of(context).push<CompareOutcome>(
         MaterialPageRoute(
           builder: (_) => PlanCompareScreen(trip: trip, result: result),
@@ -229,7 +251,7 @@ class _ReplanScreenState extends State<ReplanScreen> {
               child: FilledButton.icon(
                 onPressed: _selected.isEmpty ? null : _recommend,
                 icon: const Icon(Icons.auto_awesome),
-                label: const Text('추천 3안 받기'),
+                label: const Text('추천안 받기'),
               ),
             )
           : null,

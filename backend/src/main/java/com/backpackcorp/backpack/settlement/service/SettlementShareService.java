@@ -92,11 +92,16 @@ public class SettlementShareService {
 
 	private static SettlementShareResponse toResponse(SettlementShare share, List<SettlementTransfer> transfers) {
 		List<SettlementShareResponse.TransferResponse> items = transfers.stream()
-			.map(t -> new SettlementShareResponse.TransferResponse(t.getId(), MemberRef.from(t.getFromMember()),
-				MemberRef.from(t.getToMember()), t.getAmountKrw().longValueExact()))
+			.map(t -> new SettlementShareResponse.TransferResponse(t.getId(), refOf(t.getFromMember()),
+				refOf(t.getToMember()), t.getAmountKrw().longValueExact()))
 			.toList();
 		return new SettlementShareResponse(share.getId(), MemberRef.from(share.getSharedBy()), share.getCreatedAt(),
 			total(transfers), items);
+	}
+
+	// 공금과 오간 돈은 사람이 없어 null로 저장한다
+	private static MemberRef refOf(TripMember member) {
+		return member == null ? MemberRef.FUND : MemberRef.from(member);
 	}
 
 	private static long total(List<SettlementTransfer> transfers) {

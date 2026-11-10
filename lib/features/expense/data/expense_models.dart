@@ -69,6 +69,7 @@ class ExpenseListItem {
     required this.amountLocal,
     required this.amountKrw,
     required this.payer,
+    this.paidFromFund = false,
     required this.creator,
     required this.isPaidByMe,
     required this.myShareKrw,
@@ -88,6 +89,7 @@ class ExpenseListItem {
     amountLocal: decimalOrNull(json['amountLocal']),
     amountKrw: integer(json['amountKrw']),
     payer: MemberRef.fromJson(json['payer'] as Json),
+    paidFromFund: json['paidFromFund'] as bool? ?? false,
     creator: MemberRef.fromJsonOrNull(json['creator']),
     isPaidByMe: json['isPaidByMe'] as bool? ?? false,
     myShareKrw: integer(json['myShareKrw']),
@@ -105,12 +107,16 @@ class ExpenseListItem {
   final int amountKrw;
   final MemberRef payer;
 
+  /// 공금에서 낸 지출 (payer는 공금)
+  final bool paidFromFund;
+
   /// 입력한 사람. 결제자와 다르면 대리 입력
   final MemberRef? creator;
   final bool isPaidByMe;
   final int myShareKrw;
 
-  bool get isProxy => creator != null && creator!.memberId != payer.memberId;
+  bool get isProxy =>
+      !paidFromFund && creator != null && creator!.memberId != payer.memberId;
 }
 
 class ExpensePage {
@@ -248,6 +254,8 @@ class ExpenseDetail {
     required this.amountKrw,
     required this.splitMethod,
     required this.payer,
+    this.paidFromFund = false,
+    this.scheduleId,
     required this.creator,
     required this.items,
     required this.memberShares,
@@ -278,6 +286,8 @@ class ExpenseDetail {
       SplitMethod.equal,
     ),
     payer: MemberRef.fromJson(json['payer'] as Json),
+    paidFromFund: json['paidFromFund'] as bool? ?? false,
+    scheduleId: json['scheduleId'] as String?,
     creator: MemberRef.fromJson(json['creator'] as Json),
     items: list(json['items'], ExpenseItem.fromJson),
     memberShares: list(json['memberShares'], MemberShare.fromJson),
@@ -299,6 +309,12 @@ class ExpenseDetail {
   final int amountKrw;
   final SplitMethod splitMethod;
   final MemberRef payer;
+
+  /// 공금에서 낸 지출 (payer는 공금)
+  final bool paidFromFund;
+
+  /// 예약 결제처럼 이어진 일정
+  final String? scheduleId;
   final MemberRef creator;
   final List<ExpenseItem> items;
   final List<MemberShare> memberShares;
@@ -321,6 +337,8 @@ class ExpenseDraft {
     required this.paidDate,
     required this.rateMode,
     required this.splitMethod,
+    this.paidFromFund = false,
+    this.scheduleId,
     this.amountLocal,
     this.amountKrw,
     this.manualRate,
@@ -329,7 +347,14 @@ class ExpenseDraft {
     this.version,
   });
 
+  /// 공금 지출이면 입력한 사람 (서버가 결제자로 치지 않는다)
   String payerMemberId;
+
+  /// 공금에서 낸 지출
+  bool paidFromFund;
+
+  /// 예약 결제처럼 일정과 잇는 지출
+  String? scheduleId;
   String title;
 
   /// 외국어 영수증의 가게 이름 번역 (내용을 고쳤으면 보내지 않는다)
@@ -351,6 +376,8 @@ class ExpenseDraft {
 
   Json toJson() => {
     'payerMemberId': payerMemberId,
+    'paidFromFund': paidFromFund,
+    'scheduleId': scheduleId,
     'title': title,
     'titleKo': titleKo,
     'category': enumName(category),

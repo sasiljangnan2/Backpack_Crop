@@ -75,6 +75,9 @@ public class Schedule extends BaseTimeEntity {
 	@Column(nullable = false, length = 10)
 	private ReservationStatus reservationStatus = ReservationStatus.NONE;
 
+	// 예약 시간 (BP-SC-002 ⑤). 예약이 없으면 null
+	private LocalTime reservationTime;
+
 	@Column(length = 500)
 	private String memo;
 
@@ -94,7 +97,7 @@ public class Schedule extends BaseTimeEntity {
 	@Builder
 	private Schedule(Trip trip, LocalDate day, LocalTime startTime, LocalTime endTime, String title, String placeText,
 		LatLng place, PlaceCategory placeCategory, String memo, TripMember createdBy, Boolean locked,
-		ReservationStatus reservationStatus) {
+		ReservationStatus reservationStatus, LocalTime reservationTime) {
 		this.trip = trip;
 		this.day = day;
 		this.startTime = startTime;
@@ -105,6 +108,7 @@ public class Schedule extends BaseTimeEntity {
 		this.createdBy = createdBy;
 		this.locked = locked != null && locked;
 		this.reservationStatus = reservationStatus != null ? reservationStatus : ReservationStatus.NONE;
+		this.reservationTime = this.reservationStatus == ReservationStatus.NONE ? null : reservationTime;
 	}
 
 	public void changeTime(LocalDate day, LocalTime startTime, LocalTime endTime) {
@@ -113,10 +117,15 @@ public class Schedule extends BaseTimeEntity {
 		this.endTime = endTime;
 	}
 
-	public void changeDetails(String title, String memo, ReservationStatus reservationStatus) {
+	public void changeDetails(String title, String memo) {
 		this.title = title;
 		this.memo = memo;
-		this.reservationStatus = reservationStatus;
+	}
+
+	// 예약을 없애면 예약 시간도 지운다
+	public void changeReservation(ReservationStatus status, LocalTime time) {
+		this.reservationStatus = status;
+		this.reservationTime = status == ReservationStatus.NONE ? null : time;
 	}
 
 	// 좌표 없이 글자만 바꾸면 좌표 · 분류는 지운다 (다른 곳을 가리키게 되므로)

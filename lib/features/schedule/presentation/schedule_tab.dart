@@ -10,6 +10,7 @@ import '../../place/presentation/schedule_map.dart';
 import '../../place/presentation/schedule_map_screen.dart';
 import '../../replan/presentation/replan_screen.dart';
 import '../../trip/data/trip_models.dart';
+import '../../trip/presentation/trip_create_screen.dart';
 import '../../trip/presentation/trip_shell.dart';
 import '../data/schedule_models.dart';
 import 'poll_screens.dart';
@@ -29,6 +30,7 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
   List<Poll> _openPolls = const [];
   Object? _error;
   String? _tripId;
+  String? _period;
 
   /// 고른 날의 동선 (카드 사이 이동 · 지도 미리보기). 못 받아도 목록은 그대로 보인다
   DayRoute _route = DayRoute.empty;
@@ -46,9 +48,17 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final trip = TripScope.of(context).trip;
-    if (_tripId != trip.id) {
+    // 여행을 바꾸거나 기간을 바꾸면(여행 설정 · 기간 수정) 다시 불러온다. 고른 날이 기간 밖이 되면 다시 고른다
+    final period = '${trip.startDate}~${trip.endDate}';
+    if (_tripId != trip.id || _period != period) {
+      final day = _day;
+      if (_tripId != trip.id ||
+          day == null ||
+          !trip.dates.any((d) => sameDay(d, day))) {
+        _day = _initialDay(trip);
+      }
       _tripId = trip.id;
-      _day = _initialDay(trip);
+      _period = period;
       _load();
     }
   }
@@ -225,13 +235,15 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
             return;
           }
         case 'edit':
-          if (await showScheduleForm(
-                context,
-                trip: trip,
-                day: schedule.day,
-                existing: schedule,
-              ) ==
-              null) {
+          var changed = false;
+          final saved = await showScheduleForm(
+            context,
+            trip: trip,
+            day: schedule.day,
+            existing: schedule,
+            onChanged: () => changed = true,
+          );
+          if (saved == null && !changed) {
             return;
           }
         case 'lock':
@@ -245,21 +257,13 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
             showSnack(context, schedule.isLocked ? '고정을 풀었어요.' : '시간을 고정했어요.');
           }
         case 'delete':
-          if (schedule.isLocked) {
-            showSnack(context, '고정된 일정이에요. 고정을 먼저 풀어 주세요.');
-            return;
-          }
-          final ok = await confirm(
+          if (!await confirmDeleteSchedule(
             context,
-            title: '일정을 삭제할까요?',
-            message: "'${schedule.title}' 일정과 활동 기록이 지워져요.",
-            confirmLabel: '삭제',
-            destructive: true,
-          );
-          if (!ok) {
+            trip: trip,
+            schedule: schedule,
+          )) {
             return;
           }
-          await services.schedules.delete(trip.id, schedule.id);
       }
     } on ApiException catch (e) {
       if (mounted) {
@@ -267,6 +271,18 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
       }
     }
     await _load();
+  }
+
+  // 여행 기간 바꾸기 (방장). 여행 정보 수정 화면에서 날짜를 고르면 일정을 함께 옮길지 묻는다.
+  // 여행을 다시 불러오면 didChangeDependencies가 고른 날 · 일정을 맞춘다
+  Future<void> _editPeriod(TripDetail trip) async {
+    final scope = TripScope.of(context);
+    final changed = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => TripCreateScreen(initial: trip)),
+    );
+    if (changed != null && mounted) {
+      await scope.reload();
+    }
   }
 
   @override
@@ -294,7 +310,13 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
               );
               _load();
             },
-            icon: const Icon(Icons.how_to_vote_outlined, size: 20),
+            // 진행 중 투표가 있으면 점 (스토리보드 BP-SC-001 ③)
+            icon: Badge(
+              isLabelVisible: _openPolls.isNotEmpty,
+              smallSize: 8,
+              backgroundColor: AppColors.error,
+              child: const Icon(Icons.how_to_vote_outlined, size: 20),
+            ),
             label: const Text('장소 투표'),
           ),
           const SizedBox(width: 4),
@@ -313,9 +335,23 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: trip.dates.length,
+              itemCount: trip.dates.length + (trip.isHost ? 1 : 0),
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
+                if (index == trip.dates.length) {
+                  return Center(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _editPeriod(trip),
+                      // 테마의 버튼은 가로를 꽉 채운다. 옆으로 넘기는 DAY 줄 안에서는 내용만큼만
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                      ),
+                      icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+                      label: const Text('기간 수정'),
+                    ),
+                  );
+                }
                 final date = trip.dates[index];
                 return DayTabChip(
                   dayNo: index + 1,
@@ -412,6 +448,26 @@ class _ScheduleTabState extends State<ScheduleTab> with TripTabRefresh {
                                 icon: const Icon(Icons.add, size: 18),
                                 label: const Text('일정 추가'),
                               ),
+                            ),
+                          ),
+                        // 어디 갈지 못 정했으면 투표로 (스토리보드 BP-SC-001 ⑨)
+                        if (ofDay.isEmpty)
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        PollCreateScreen(trip: trip),
+                                  ),
+                                );
+                                _load();
+                              },
+                              icon: const Icon(
+                                Icons.how_to_vote_outlined,
+                                size: 18,
+                              ),
+                              label: const Text('장소 투표 만들기'),
                             ),
                           )
                         else
@@ -547,12 +603,26 @@ class _ScheduleRow extends StatelessWidget {
                   ),
                   if (schedule.placeText != null) ...[
                     const SizedBox(height: 3),
-                    Text(
-                      schedule.placeText!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.muted,
-                      ),
+                    Row(
+                      children: [
+                        if (schedule.placeCategory case final category?) ...[
+                          Icon(category.icon, size: 13, color: AppColors.muted),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: Text(
+                            schedule.placeCategory == null
+                                ? schedule.placeText!
+                                : '${schedule.placeText!} · ${schedule.placeCategory!.label}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 6),
@@ -573,21 +643,10 @@ class _ScheduleRow extends StatelessWidget {
                               ? AppColors.warningSoft
                               : AppColors.successSoft,
                         ),
-                      if (schedule.reservationStatus ==
-                          ReservationStatus.confirmed)
-                        const Pill(
-                          '예약 확정',
-                          color: AppColors.success,
-                          background: AppColors.successSoft,
-                          icon: Icons.check,
-                        ),
-                      if (schedule.reservationStatus ==
-                          ReservationStatus.pending)
-                        const Pill(
-                          '예약 대기',
-                          color: AppColors.warning,
-                          background: AppColors.warningSoft,
-                        ),
+                      if (schedule.reservationStatus != ReservationStatus.none)
+                        ReservationPill(schedule: schedule),
+                      if (schedule.linkedExpenseId != null)
+                        const LinkedExpensePill(),
                       if (schedule.replanned)
                         const Pill('재구성', icon: Icons.auto_awesome),
                       if (schedule.isLocked)
