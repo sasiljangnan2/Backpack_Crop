@@ -31,8 +31,8 @@ dependencies {
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	runtimeOnly("com.mysql:mysql-connector-j")
-	// Render 무료 시연 빌드에만 메모리 DB를 포함한다. 일반 배포는 MySQL을 유지한다.
-	if (providers.gradleProperty("renderDemo").orNull == "true") {
+	// 임시 시연 빌드에만 메모리 DB를 포함한다. 일반 배포는 MySQL을 유지한다.
+	if (providers.gradleProperty("demo").orNull == "true") {
 		runtimeOnly("com.h2database:h2")
 	}
 	annotationProcessor("org.projectlombok:lombok")

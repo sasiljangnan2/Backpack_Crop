@@ -23,13 +23,13 @@ import com.backpackcorp.backpack.support.InMemoryRedis;
 import com.jayway.jsonpath.JsonPath;
 
 @SpringBootTest(properties = {
-	"JWT_SECRET=render-demo-test-secret-at-least-32-bytes",
+	"JWT_SECRET=demo-test-secret-at-least-32-bytes",
 	"REDIS_URL=redis://localhost:6379",
 	"exchange-rate.fetch-enabled=false",
 	"map.fetch-enabled=false"
 })
-@ActiveProfiles("render-demo")
-class RenderDemoAuthTest {
+@ActiveProfiles("demo")
+class DemoAuthTest {
 
 	@Autowired
 	private WebApplicationContext context;
@@ -48,20 +48,20 @@ class RenderDemoAuthTest {
 
 		mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
 			.content("""
-				{"email":"render-demo@example.com","password":"backpack1234","name":"Demo"}
+				{"email":"demo@example.com","password":"backpack1234","name":"Demo"}
 				"""))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.accessToken").isNotEmpty());
 		String login = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("""
-				{"email":"render-demo@example.com","password":"backpack1234"}
+				{"email":"demo@example.com","password":"backpack1234"}
 				"""))
 			.andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
 		String access = JsonPath.read(login, "$.accessToken");
 		mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + access))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.email").value("render-demo@example.com"));
+			.andExpect(jsonPath("$.email").value("demo@example.com"));
 		mvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
 	}
 }

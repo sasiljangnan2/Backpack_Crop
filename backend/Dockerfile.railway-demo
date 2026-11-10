@@ -1,21 +1,21 @@
 FROM eclipse-temurin:21-jdk AS builder
 WORKDIR /app
-COPY gradle ./gradle
-COPY gradlew build.gradle.kts settings.gradle.kts ./
-RUN chmod +x ./gradlew && ./gradlew dependencies -PrenderDemo=true --no-daemon
-COPY src ./src
-RUN ./gradlew bootJar -PrenderDemo=true -x test --no-daemon
+COPY backend/gradle ./gradle
+COPY backend/gradlew backend/build.gradle.kts backend/settings.gradle.kts ./
+RUN chmod +x ./gradlew && ./gradlew dependencies -Pdemo=true --no-daemon
+COPY backend/src ./src
+RUN ./gradlew bootJar -Pdemo=true -x test --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app \
     && mkdir storage \
-    && printf 'Backpack render-demo is running\n' > storage/render-health.txt \
+    && printf 'Backpack demo is running\n' > storage/demo-health.txt \
     && chown -R app:app storage
 COPY --from=builder --chown=app:app /app/build/libs/*.jar ./app.jar
 USER app
-ENV SPRING_PROFILES_ACTIVE=render-demo
-# Free 서비스의 메모리 일부는 네이티브 메모리와 스레드에 남긴다.
+ENV SPRING_PROFILES_ACTIVE=demo
+# 시연 서버의 메모리 일부는 네이티브 메모리와 스레드에 남긴다.
 ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx256m -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=48m -XX:+UseSerialGC -Xss512k"
 EXPOSE 10000
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

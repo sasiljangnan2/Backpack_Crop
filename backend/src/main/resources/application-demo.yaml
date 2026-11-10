@@ -1,4 +1,4 @@
-# 임시 시연 전용. 서버 재시작·절전 시 회원과 여행 데이터가 초기화된다.
+# 임시 시연 전용. 서버 재시작 시 회원과 여행 데이터가 초기화된다.
 # prod/dev와 함께 활성화하지 않는다.
 spring:
   datasource:
@@ -34,7 +34,7 @@ server:
       min-spare: 2
 
 storage:
-  public-base-url: ${RENDER_EXTERNAL_URL:http://localhost:10000}/files
+  public-base-url: ${PUBLIC_BASE_URL:http://localhost:10000}/files
 
 firebase:
   credentials-path: ""
