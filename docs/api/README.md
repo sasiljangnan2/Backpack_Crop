@@ -1062,7 +1062,7 @@ AI에는 일정 이름 · 장소 · 시간만 보낸다.
     }
   ],
   "memberShares": [
-    { "memberId": "0192...", "name": "박멤버", "shareKrw": 9072, "shareLocal": 970.27, "isPayer": true }
+    { "memberId": "0192...", "name": "박멤버", "shareKrw": 9072, "shareLocal": 970, "isPayer": true }
   ],
   "version": 0,
   "createdAt": "2026-10-03T05:50:00Z",
@@ -1071,7 +1071,7 @@ AI에는 일정 이름 · 장소 · 시간만 보낸다.
 ```
 
 - `remainderKrw` / `remainderMember`: 끝전과 부담한 사람 (시안의 "원 단위 끝전은 결제자 부담")
-- `memberShares`: 사람별 부담 합계(등록 완료 화면의 "개인별 부담"). `shareLocal`은 표시용 외화 환산값
+- `memberShares`: 사람별 부담 합계(등록 완료 화면의 "개인별 부담"). `shareLocal`은 표시용 외화 환산값으로, 여행 통화의 소수 자리로 반올림한다 (엔 · 원은 정수, 달러 · 유로는 소수 2자리)
 
 에러
 

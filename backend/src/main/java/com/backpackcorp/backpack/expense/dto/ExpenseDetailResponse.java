@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Currency;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,9 +95,10 @@ public record ExpenseDetailResponse(
 				remainder.member() == null ? null : MemberRef.from(remainder.member()), shares);
 		}).toList();
 
+		int localScale = scaleOf(expense.getTrip().getCurrencyCode());
 		List<MemberShareResponse> memberShares = totals.values().stream()
 			.map(total -> new MemberShareResponse(total.member.getId(), MemberRef.nameOf(total.member), total.shareKrw,
-				toLocal(total.shareKrw, expense.getAppliedRate()), total.member.getId().equals(payerId)))
+				toLocal(total.shareKrw, expense.getAppliedRate(), localScale), total.member.getId().equals(payerId)))
 			.toList();
 
 		return new ExpenseDetailResponse(expense.getId(), expense.getTitle(), expense.getTitleKo(),
@@ -107,11 +109,22 @@ public record ExpenseDetailResponse(
 			memberShares, saved ? expense.getVersion() : null, expense.getCreatedAt(), expense.getUpdatedAt());
 	}
 
-	private static BigDecimal toLocal(long krw, BigDecimal rate) {
+	// 표시용 외화 환산값. 여행 통화의 소수 자리로 반올림한다 (엔 · 원은 0자리: ₩5,969 ≈ ¥700, ¥700.03이 아니라)
+	private static BigDecimal toLocal(long krw, BigDecimal rate, int scale) {
 		if (rate == null || rate.signum() == 0) {
 			return null;
 		}
-		return BigDecimal.valueOf(krw).divide(rate, 2, RoundingMode.HALF_UP);
+		return BigDecimal.valueOf(krw).divide(rate, scale, RoundingMode.HALF_UP);
+	}
+
+	// ReceiptScanService.scaleOf와 같은 규칙: 통화의 기본 소수 자리(최대 2), 모르는 통화는 2
+	private static int scaleOf(String currencyCode) {
+		try {
+			int digits = Currency.getInstance(currencyCode).getDefaultFractionDigits();
+			return digits < 0 ? 2 : Math.min(digits, 2);
+		} catch (IllegalArgumentException e) {
+			return 2;
+		}
 	}
 
 	private static final class MemberTotal {
