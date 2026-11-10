@@ -89,7 +89,15 @@ void main() {
           'status': 409,
           'code': 'SCHEDULE_OVERLAP',
           'message': '다른 일정과 시간이 겹쳐요.',
-          'details': {'title': '구로몬 시장', 'startTime': '12:00'},
+          // 서버가 실제로 보내는 순서 (ScheduleService: scheduleId가 맨 앞)
+          'details': {
+            'scheduleId': '01a1c40d-f865-712a-bd80-d3ce7c086aa0',
+            'title': '구로몬 시장',
+            'day': '2026-10-03',
+            'startTime': '12:00',
+            'endTime': '13:00',
+            'overlapCount': 1,
+          },
         }),
       ),
     );
@@ -101,8 +109,56 @@ void main() {
       expect(e.status, 409);
       expect(e.code, 'SCHEDULE_OVERLAP');
       expect(e.details['title'], '구로몬 시장');
-      expect(e.displayMessage, '구로몬 시장');
+      expect(e.details['overlapCount'], '1');
+      // details의 첫 값(일정 id)이 아니라 겹친 일정을 알려 주는 문장
+      expect(
+        e.displayMessage,
+        "그 시간에 '구로몬 시장' (12:00–13:00) 일정이 있어요. 시간을 바꾸거나 그 일정을 먼저 옮겨 주세요.",
+      );
     }
+  });
+
+  test('필드 메시지가 있으면 그것을, 없으면 전체 메시지를 보여 준다', () {
+    const field = ApiException(
+      status: 400,
+      code: 'INVALID_INPUT',
+      message: '입력값이 올바르지 않습니다.',
+      details: {'email': '이메일 형식이 올바르지 않아요.'},
+    );
+    const plain = ApiException(
+      status: 404,
+      code: 'NOT_FOUND',
+      message: '요청한 리소스를 찾을 수 없습니다.',
+    );
+    const overlapWithoutTitle = ApiException(
+      status: 409,
+      code: 'SCHEDULE_OVERLAP',
+      message: '다른 일정과 시간이 겹쳐요.',
+      details: {'scheduleId': 'x'},
+    );
+
+    expect(field.displayMessage, '이메일 형식이 올바르지 않아요.');
+    expect(plain.displayMessage, '요청한 리소스를 찾을 수 없습니다.');
+    expect(overlapWithoutTitle.displayMessage, '다른 일정과 시간이 겹쳐요.');
+  });
+
+  test('details에 값(id · 버전 · 개수)을 담는 오류는 그 값이 아니라 메시지를 보여 준다', () {
+    // 서버가 실제로 보내는 형태 (ScheduleService · TripService)
+    const locked = ApiException(
+      status: 409,
+      code: 'SCHEDULE_LOCKED',
+      message: '고정된 일정이에요. 고정을 먼저 풀어 주세요.',
+      details: {'scheduleId': '01a1c40d-f865-712a-bd80-d3ce7c086aa0'},
+    );
+    const version = ApiException(
+      status: 409,
+      code: 'VERSION_CONFLICT',
+      message: '다른 사람이 먼저 수정했어요. 새로고침 후 다시 시도해 주세요.',
+      details: {'version': '3'},
+    );
+
+    expect(locked.displayMessage, '고정된 일정이에요. 고정을 먼저 풀어 주세요.');
+    expect(version.displayMessage, '다른 사람이 먼저 수정했어요. 새로고침 후 다시 시도해 주세요.');
   });
 
   test('연결이 안 되면 NETWORK 오류다', () async {

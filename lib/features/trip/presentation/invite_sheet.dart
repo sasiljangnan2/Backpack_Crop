@@ -25,10 +25,11 @@ class InviteCodeCard extends StatelessWidget {
   Future<void> _share() => SharePlus.instance.share(
     ShareParams(
       text:
-          '[Backpack] ${trip.name} 여행에 초대해요!\n'
+          // 여행 이름이 "… 여행"으로 끝나면 "여행 여행"이 되므로 이름만 따옴표로 감싼다
+          "[Backpack] '${trip.name}'에 초대해요!\n"
           'Backpack 앱 → 여행 목록 → 코드로 참여에서 아래 코드를 입력하세요.\n\n'
           '초대 코드: ${trip.inviteCode}',
-      subject: '${trip.name} 여행 초대',
+      subject: "'${trip.name}' 초대",
     ),
   );
 
