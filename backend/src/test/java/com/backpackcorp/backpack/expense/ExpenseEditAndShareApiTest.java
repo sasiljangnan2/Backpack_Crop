@@ -1,5 +1,6 @@
 package com.backpackcorp.backpack.expense;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -97,6 +98,21 @@ class ExpenseEditAndShareApiTest {
 		perform(get(expense(java.util.UUID.randomUUID().toString())), 2, null)
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("EXPENSE_NOT_FOUND"));
+	}
+
+	@Test
+	void 사람별_부담의_외화_환산은_여행_통화의_소수_자리로_반올림한다() throws Exception {
+		// ¥1,000 × 9.35 = ₩9,350을 세 명이 나누면 결제자가 끝전을 부담해 ₩3,118 · ₩3,116 · ₩3,116.
+		// 엔으로 되돌리면 333.48 · 333.26이지만 엔은 소수 자리가 없으므로 모두 ≈ ¥333
+		// (이전에는 소수 2자리로 보내 ¥333.48처럼 보였다)
+		String id = createJpy(1, "1000", 0, 1, 2);
+
+		String body = perform(get(expense(id)), 0, null)
+			.andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+
+		List<Number> locals = JsonPath.read(body, "$.memberShares[*].shareLocal");
+		assertThat(locals).hasSize(3).allSatisfy(local -> assertThat(local.doubleValue()).isEqualTo(333.0));
 	}
 
 	@Test

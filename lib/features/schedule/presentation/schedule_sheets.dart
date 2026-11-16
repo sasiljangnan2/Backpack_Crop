@@ -586,12 +586,15 @@ class _ActivitySheetState extends State<_ActivitySheet> {
   }
 
   void _quickEnd(int minutesAgo) {
-    final now = _now!;
-    final minutes = (minutesOf(now) - minutesAgo).clamp(
-      minutesOf(_start),
-      minutesOf(now),
-    );
-    setState(() => _end = timeOfMinutes(minutes));
+    final now = minutesOf(_now!);
+    final start = minutesOf(_start);
+    // 지금이 실제 시작보다 이르면 clamp(시작, 지금)이 예외를 던져 버튼이 아무 반응도 하지 않았다.
+    // 그때는 실제 시작부터 고치도록 알린다
+    if (now < start) {
+      showSnack(context, '아직 실제 시작 전이에요. 실제 시작을 먼저 고쳐 주세요.');
+      return;
+    }
+    setState(() => _end = timeOfMinutes((now - minutesAgo).clamp(start, now)));
   }
 
   Future<void> _save({bool replan = false}) async {
@@ -760,10 +763,18 @@ class _ActivitySheetState extends State<_ActivitySheet> {
             if (_now != null)
               Row(
                 children: [
+                  // 1:3이면 "기록만 저장"이 세 줄로 깨진다. 좁은 화면 · 큰 글자에서도 한 줄로 줄여 보인다
                   Expanded(
+                    flex: 2,
                     child: OutlinedButton(
                       onPressed: _busy ? null : _save,
-                      child: const Text('기록만 저장'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('기록만 저장', maxLines: 1),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -771,8 +782,14 @@ class _ActivitySheetState extends State<_ActivitySheet> {
                     flex: 3,
                     child: FilledButton.icon(
                       onPressed: _busy ? null : () => _save(replan: true),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
                       icon: const Icon(Icons.auto_awesome, size: 18),
-                      label: const Text('저장하고 추천받기'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('저장하고 추천받기', maxLines: 1),
+                      ),
                     ),
                   ),
                 ],
