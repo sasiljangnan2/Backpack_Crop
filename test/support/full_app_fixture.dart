@@ -3,12 +3,21 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class FullAppFixture {
+  // 오늘이 여행 기간 안에 있어야 일정 탭에서 진행 요약과 AI 재구성을 보여 준다.
+  static final _today = DateTime.now();
+
+  static String _day(int offset) => DateTime(
+    _today.year,
+    _today.month,
+    _today.day + offset,
+  ).toIso8601String().split('T').first;
+
   final requests = <http.Request>[];
   final unexpected = <String>[];
   final schedules = <Map<String, Object?>>[
     {
       'id': 's1',
-      'day': '2026-11-10',
+      'day': _day(0),
       'startTime': '13:30',
       'endTime': '14:30',
       'title': '구로몬 시장',
@@ -22,12 +31,12 @@ class FullAppFixture {
   ];
   static const me = {'memberId': 'm1', 'name': '준휘'};
   static const other = {'memberId': 'm2', 'name': '성진'};
-  static const trip = {
+  static final trip = {
     'id': 't1',
     'name': '오사카 4박 5일',
     'destination': '오사카, 일본',
-    'startDate': '2026-11-09',
-    'endDate': '2026-11-13',
+    'startDate': _day(-1),
+    'endDate': _day(3),
     'nights': 4,
     'currencyCode': 'JPY',
     'timeZone': 'Asia/Tokyo',
@@ -42,12 +51,12 @@ class FullAppFixture {
       {'memberId': 'm2', 'name': '성진', 'role': 'MEMBER', 'isMe': false},
     ],
   };
-  static const expenses = [
+  static final expenses = [
     {
       'id': 'e1',
       'title': '이치란 라멘 난바점',
       'category': 'FOOD',
-      'paidDate': '2026-11-10',
+      'paidDate': _day(0),
       'rateMode': 'MANUAL',
       'amountLocal': 7360,
       'amountKrw': 68816,
@@ -60,7 +69,7 @@ class FullAppFixture {
       'id': 'e2',
       'title': '우메다 스카이빌딩 입장권',
       'category': 'ACTIVITY',
-      'paidDate': '2026-11-09',
+      'paidDate': _day(-1),
       'rateMode': 'MANUAL',
       'amountLocal': 10000,
       'amountKrw': 93500,
@@ -203,7 +212,7 @@ class FullAppFixture {
     }
     if (path.endsWith('/today')) {
       return reply({
-        'date': '2026-11-10',
+        'date': _day(0),
         'localTime': '12:00',
         'tripStatus': 'LIVE',
         'dayNo': 2,
