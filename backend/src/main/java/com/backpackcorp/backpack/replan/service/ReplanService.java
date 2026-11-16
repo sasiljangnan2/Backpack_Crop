@@ -61,7 +61,8 @@ import lombok.extern.slf4j.Slf4j;
 
 // BP-AI-002 · 003 오늘 남은 일정 다시 짜기.
 //   다시 짤 구간: 지금(또는 진행 중인 다른 일정이 끝나는 시각) ~ 그 뒤 처음 나오는 그대로 둘 일정(anchor, 보통 고정 일정)
-//   추천: Gemini 키가 있으면 AI가 고른 순서 · 장소를 실제 이동 시간으로 다시 맞추고, 없거나 실패하면 규칙 기반 3안
+//   추천: Gemini 키가 있으면 AI가 고른 순서 · 장소를 실제 이동 시간으로 다시 맞추고, 없거나 실패하면 규칙 기반 3안.
+//         같은 순서의 안은 한 번만 보내므로 1~3안
 //   적용: 추천 뒤 그날 일정이 바뀌지 않았을 때만 (버전 비교). 빠지는 일정은 지우고, 바뀐 일정에는 "재구성" 표시
 @Slf4j
 @Service
@@ -130,7 +131,8 @@ public class ReplanService {
 			});
 			try {
 				List<ReplanResponse.Plan> merged = ai.get(aiBudget.toMillis(), TimeUnit.MILLISECONDS);
-				boolean usedAi = !merged.equals(rulePlans);
+				// 겹치는 안을 빼기도 하므로 목록 전체가 아니라 AI 안이 하나라도 들어갔는지로 가린다
+				boolean usedAi = merged.stream().anyMatch(plan -> !rulePlans.contains(plan));
 				source = usedAi ? ReplanResponse.Source.AI : ReplanResponse.Source.RULE;
 				notice = usedAi ? null : "AI 추천이 시간에 맞지 않아 기본 추천을 보여 드려요.";
 				plans = merged;
@@ -146,36 +148,78 @@ public class ReplanService {
 				notice = "AI 응답을 받지 못해 기본 추천을 보여 드려요.";
 			}
 		}
+		// 규칙 기반 안끼리도 같은 순서일 수 있다. 키가 없거나 AI가 실패해 규칙 기반 안을 보낼 때도 같은 안은 한 번만 보낸다
+		plans = withoutRepeats(plans);
 		ReplanResponse response = new ReplanResponse(UUID.randomUUID(), source, notice, prepared.context(), plans);
 		cache().put(response.requestId(), new Snapshot(tripId, prepared.day(), prepared.versions(),
 			prepared.targetIds(), response));
 		return response;
 	}
 
-	// AI 안을 실제 이동 시간으로 맞춘다. 하나도 담지 못한 안은 같은 기준의 규칙 기반 안으로 바꾼다
-	private static List<ReplanResponse.Plan> merge(List<AiPlanner.Draft> drafts, List<ReplanResponse.Plan> rulePlans,
+	// AI 안을 실제 이동 시간으로 맞춘다. 하나도 담지 못한 안은 같은 기준의 규칙 기반 안으로 바꾼다.
+	// 같은 카드가 두 장 나오지 않게, 앞의 안과 같은 곳을 같은 순서로 들르는 AI 안은 규칙 기반 안으로 바꾸고,
+	// 그것도 앞의 안과 같으면 그 안은 빼고 보낸다 (그래서 2안 이하일 수 있다. 첫 안은 항상 들어간다)
+	static List<ReplanResponse.Plan> merge(List<AiPlanner.Draft> drafts, List<ReplanResponse.Plan> rulePlans,
 		RulePlanner.Input input, RulePlanner.Travel travel) {
 		Map<PlanKey, AiPlanner.Draft> byKey = drafts.stream()
 			.collect(Collectors.toMap(AiPlanner.Draft::key, Function.identity(), (a, b) -> a));
 		List<ReplanResponse.Plan> merged = new ArrayList<>();
 		for (ReplanResponse.Plan rule : rulePlans) {
-			AiPlanner.Draft draft = byKey.get(rule.key());
-			if (draft == null || draft.stops().isEmpty()) {
-				merged.add(rule);
+			ReplanResponse.Plan ai = fitDraft(byKey.get(rule.key()), rule.key(), input, travel);
+			boolean aiRepeats = ai != null && sameRouteAsAny(ai, merged);
+			ReplanResponse.Plan chosen = ai != null && !aiRepeats ? ai : rule;
+			if (sameRouteAsAny(chosen, merged)) {
+				log.info("'{}' 안이 앞의 안과 같은 순서라 빼고 보냄", rule.label());
 				continue;
 			}
-			ReplanResponse.Plan fitted = RulePlanner.fit(rule.key(), draft.stops(), input, travel, true, null);
-			if (fitted.items().isEmpty()) {
-				merged.add(rule);
-				continue;
+			if (aiRepeats) {
+				log.info("AI '{}' 안이 앞의 안과 같은 순서라 규칙 기반 안으로 바꿈", rule.label());
 			}
-			// AI가 고른 일정이 모두 들어갔을 때만 AI의 설명을 쓴다 (아니면 실제 결과로 만든 설명)
-			if (draft.reason() != null && fitted.items().size() == draft.stops().size()) {
-				fitted = RulePlanner.fit(rule.key(), draft.stops(), input, travel, true, draft.reason());
-			}
-			merged.add(RulePlanner.withDropped(fitted, input));
+			merged.add(chosen);
 		}
 		return merged;
+	}
+
+	// AI 안 하나를 실제 이동 시간으로 맞춘다. 담을 일정이 없으면 null
+	private static ReplanResponse.Plan fitDraft(AiPlanner.Draft draft, PlanKey key, RulePlanner.Input input,
+		RulePlanner.Travel travel) {
+		if (draft == null || draft.stops().isEmpty()) {
+			return null;
+		}
+		ReplanResponse.Plan fitted = RulePlanner.fit(key, draft.stops(), input, travel, true, null);
+		if (fitted.items().isEmpty()) {
+			return null;
+		}
+		// AI가 고른 일정이 모두 들어갔을 때만 AI의 설명을 쓴다 (아니면 실제 결과로 만든 설명)
+		if (draft.reason() != null && fitted.items().size() == draft.stops().size()) {
+			fitted = RulePlanner.fit(key, draft.stops(), input, travel, true, draft.reason());
+		}
+		return RulePlanner.withDropped(fitted, input);
+	}
+
+	// 앞의 안과 같은 곳을 같은 순서로 들르는 안을 뺀다. 첫 안은 항상 남는다
+	static List<ReplanResponse.Plan> withoutRepeats(List<ReplanResponse.Plan> plans) {
+		List<ReplanResponse.Plan> kept = new ArrayList<>();
+		for (ReplanResponse.Plan plan : plans) {
+			if (sameRouteAsAny(plan, kept)) {
+				log.info("'{}' 안이 앞의 안과 같은 순서라 빼고 보냄", plan.label());
+				continue;
+			}
+			kept.add(plan);
+		}
+		return kept;
+	}
+
+	private static boolean sameRouteAsAny(ReplanResponse.Plan plan, List<ReplanResponse.Plan> others) {
+		List<String> route = route(plan);
+		return others.stream().anyMatch(other -> route(other).equals(route));
+	}
+
+	// 들르는 곳의 순서. 기존 일정은 id로, 새로 넣는 일정은 제목으로 가린다
+	private static List<String> route(ReplanResponse.Plan plan) {
+		return plan.items().stream()
+			.map(item -> item.scheduleId() != null ? item.scheduleId().toString() : "new:" + item.title())
+			.toList();
 	}
 
 	@Transactional

@@ -141,7 +141,7 @@
 | | DELETE | `/api/trips/{tripId}/schedules/{scheduleId}/activity` | 활동 기록 취소 |
 | | GET | `/api/trips/{tripId}/today` | 오늘 요약 |
 | | GET | `/api/trips/{tripId}/schedules/route?day=` | 그날 동선 (일정 사이 이동 시간 · 거리) |
-| AI 재구성 | POST | `/api/trips/{tripId}/replan` | 남은 일정 추천 3안 |
+| AI 재구성 | POST | `/api/trips/{tripId}/replan` | 남은 일정 추천 (최대 3안) |
 | | POST | `/api/trips/{tripId}/replan/apply` | 고른 안 적용 |
 | 지도 · 장소 | GET | `/api/places/search?q=` | 장소 검색 (OpenStreetMap) |
 | | GET | `/api/places/reverse?lat=&lng=` | 좌표 → 장소 (현재 위치 이름) |
@@ -665,7 +665,9 @@
 
 다시 짤 구간은 **지금(진행 중인 다른 일정이 있으면 그 끝) ~ 그 뒤 처음 나오는 그대로 둘 일정(anchor, 보통 고정 일정)**.
 `GEMINI_API_KEY`가 있으면 Gemini(무료 등급)가 순서 · 머무는 시간 · 새로 들를 곳(안마다 2곳까지)을 고르고, 서버가 실제 이동 시간으로
-시각을 다시 맞춘다(고정 일정 · 겹침 규칙은 항상 지킨다). 키가 없거나 AI가 실패하면 규칙 기반 3안을 돌려준다 (`source: RULE`, `notice`에 이유).
+시각을 다시 맞춘다(고정 일정 · 겹침 규칙은 항상 지킨다). 키가 없거나 AI가 실패하면 규칙 기반 안을 돌려준다 (`source: RULE`, `notice`에 이유).
+같은 곳을 같은 순서로 들르는 안은 한 번만 보낸다. AI 안이 앞의 안과 같으면 그 자리는 규칙 기반 안으로 바꾸고,
+그것도 같으면 뺀다. 규칙 기반 안끼리 같을 때도 뺀다 (예: 다시 짤 일정이 하나뿐일 때). 그래서 `plans`는 1~3개다 (첫 안은 항상 있다).
 AI에는 일정 이름 · 장소 · 시간만 보낸다.
 
 ### POST `/api/trips/{tripId}/replan`
