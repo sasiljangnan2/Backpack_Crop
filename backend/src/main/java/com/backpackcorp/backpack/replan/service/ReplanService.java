@@ -116,13 +116,14 @@ public class ReplanService {
 			points.add(input.anchor().place());
 		}
 		TravelLookup travel = new TravelLookup(travelService, points);
-		List<ReplanResponse.Plan> plans = RulePlanner.plans(input, travel);
-		ReplanResponse.Source source = ReplanResponse.Source.RULE;
+		List<ReplanResponse.Plan> rulePlans = RulePlanner.plans(input, travel);
+		List<ReplanResponse.Plan> plans = rulePlans;
+		Set<PlanKey> aiKeys = Set.of();
+		boolean aiAvailable = aiPlanner.available();
 		String notice;
-		if (!aiPlanner.available()) {
+		if (!aiAvailable) {
 			notice = "AI 키가 설정되지 않아 기본 추천으로 만들었어요.";
 		} else {
-			List<ReplanResponse.Plan> rulePlans = plans;
 			Future<List<ReplanResponse.Plan>> ai = AI_EXECUTOR.submit(() -> {
 				List<AiPlanner.Draft> drafts = aiPlanner.suggest(prepared.aiContext());
 				List<LatLng> all = new ArrayList<>(points);
@@ -130,11 +131,12 @@ public class ReplanService {
 				return merge(drafts, rulePlans, input, new TravelLookup(travelService, all));
 			});
 			try {
-				List<ReplanResponse.Plan> merged = ai.get(aiBudget.toMillis(), TimeUnit.MILLISECONDS);
-				boolean usedAi = !merged.equals(rulePlans);
-				source = usedAi ? ReplanResponse.Source.AI : ReplanResponse.Source.RULE;
-				notice = usedAi ? null : "AI 추천이 시간에 맞지 않아 기본 추천을 보여 드려요.";
-				plans = merged;
+				plans = ai.get(aiBudget.toMillis(), TimeUnit.MILLISECONDS);
+				aiKeys = plans.stream()
+					.filter(plan -> !rulePlans.contains(plan))
+					.map(ReplanResponse.Plan::key)
+					.collect(Collectors.toSet());
+				notice = null;
 			} catch (TimeoutException e) {
 				ai.cancel(true);
 				log.warn("AI 일정 재구성이 {}초를 넘어 규칙 기반 추천으로 대신", aiBudget.toSeconds());
@@ -150,12 +152,20 @@ public class ReplanService {
 		// 같은 안은 하나로, 지금 일정과 같은 안은 빼서 보여 줄 만한 안만 남긴다 (0~3개)
 		int made = plans.size();
 		plans = PlanFilter.distinct(plans, prepared.current());
+		// 이름이 합쳐져도 대표 안의 키는 유지된다.
+		boolean usedAi = plans.stream().map(ReplanResponse.Plan::key).anyMatch(aiKeys::contains);
+		ReplanResponse.Source source = usedAi ? ReplanResponse.Source.AI : ReplanResponse.Source.RULE;
 		if (plans.isEmpty()) {
 			notice = "바꿀 만한 추천안이 없어요. 지금 일정이 이미 고른 조건에 잘 맞아요."
-				+ (aiPlanner.available() && source == ReplanResponse.Source.RULE ? " (AI 응답은 받지 못했어요)" : "");
-		} else if (plans.size() < made) {
-			String merged = "겹치거나 지금 일정과 같은 안은 빼고 " + plans.size() + "안만 보여 드려요.";
-			notice = notice == null ? merged : notice + " " + merged;
+				+ (aiAvailable && notice != null ? " (AI 응답은 받지 못했어요)" : "");
+		} else {
+			if (!usedAi && notice == null) {
+				notice = "AI 추천이 시간에 맞지 않아 기본 추천을 보여 드려요.";
+			}
+			if (plans.size() < made) {
+				String filtered = "겹치거나 지금 일정과 같은 안은 빼고 " + plans.size() + "안만 보여 드려요.";
+				notice = notice == null ? filtered : notice + " " + filtered;
+			}
 		}
 		ReplanResponse response = new ReplanResponse(UUID.randomUUID(), source, notice, prepared.context(), plans);
 		cache().put(response.requestId(), new Snapshot(tripId, prepared.day(), prepared.versions(),
@@ -163,30 +173,39 @@ public class ReplanService {
 		return response;
 	}
 
-	// AI 안을 실제 이동 시간으로 맞춘다. 하나도 담지 못한 안은 같은 기준의 규칙 기반 안으로 바꾼다
-	private static List<ReplanResponse.Plan> merge(List<AiPlanner.Draft> drafts, List<ReplanResponse.Plan> rulePlans,
+	// AI 안을 이동 시간에 맞춘다. 비어 있거나 앞의 안과 같으면 같은 기준의 규칙 기반 안으로 바꾼다.
+	// 대체안끼리도 겹칠 수 있어 최종 필터에서 이름을 합친다.
+	static List<ReplanResponse.Plan> merge(List<AiPlanner.Draft> drafts, List<ReplanResponse.Plan> rulePlans,
 		RulePlanner.Input input, RulePlanner.Travel travel) {
 		Map<PlanKey, AiPlanner.Draft> byKey = drafts.stream()
 			.collect(Collectors.toMap(AiPlanner.Draft::key, Function.identity(), (a, b) -> a));
 		List<ReplanResponse.Plan> merged = new ArrayList<>();
 		for (ReplanResponse.Plan rule : rulePlans) {
-			AiPlanner.Draft draft = byKey.get(rule.key());
-			if (draft == null || draft.stops().isEmpty()) {
-				merged.add(rule);
-				continue;
+			ReplanResponse.Plan ai = fitDraft(byKey.get(rule.key()), rule.key(), input, travel);
+			boolean aiRepeats = ai != null && merged.stream().anyMatch(plan -> PlanFilter.same(ai, plan));
+			if (aiRepeats) {
+				log.info("AI '{}' 안이 앞의 안과 겹쳐 규칙 기반 안으로 바꿈", rule.label());
 			}
-			ReplanResponse.Plan fitted = RulePlanner.fit(rule.key(), draft.stops(), input, travel, true, null);
-			if (fitted.items().isEmpty()) {
-				merged.add(rule);
-				continue;
-			}
-			// AI가 고른 일정이 모두 들어갔을 때만 AI의 설명을 쓴다 (아니면 실제 결과로 만든 설명)
-			if (draft.reason() != null && fitted.items().size() == draft.stops().size()) {
-				fitted = RulePlanner.fit(rule.key(), draft.stops(), input, travel, true, draft.reason());
-			}
-			merged.add(RulePlanner.withDropped(fitted, input));
+			merged.add(ai != null && !aiRepeats ? ai : rule);
 		}
 		return merged;
+	}
+
+	// AI 안 하나를 실제 이동 시간으로 맞춘다. 담을 일정이 없으면 null
+	private static ReplanResponse.Plan fitDraft(AiPlanner.Draft draft, PlanKey key, RulePlanner.Input input,
+		RulePlanner.Travel travel) {
+		if (draft == null || draft.stops().isEmpty()) {
+			return null;
+		}
+		ReplanResponse.Plan fitted = RulePlanner.fit(key, draft.stops(), input, travel, true, null);
+		if (fitted.items().isEmpty()) {
+			return null;
+		}
+		// AI가 고른 일정이 모두 들어갔을 때만 AI의 설명을 쓴다 (아니면 실제 결과로 만든 설명)
+		if (draft.reason() != null && fitted.items().size() == draft.stops().size()) {
+			fitted = RulePlanner.fit(key, draft.stops(), input, travel, true, draft.reason());
+		}
+		return RulePlanner.withDropped(fitted, input);
 	}
 
 	@Transactional

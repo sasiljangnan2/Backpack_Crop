@@ -356,10 +356,71 @@ class AsyncBuilderState<T> extends State<AsyncBuilder<T>> {
   }
 }
 
+OverlayEntry? _overlaySnack;
+
+/// 화면 아래 안내 문구.
+///
+/// 바텀시트 · 대화상자 안에서 부르면 Scaffold의 스낵바는 시트 뒤에 그려져
+/// 시트를 닫기 전까지 보이지 않는다. 그때는 맨 위 오버레이에 같은 모양으로 띄운다.
 void showSnack(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+  _overlaySnack?.remove();
+  _overlaySnack = null;
+  if (ModalRoute.of(context) is! PopupRoute) {
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+    return;
+  }
+  final entry = OverlayEntry(builder: (_) => _OverlaySnack(message));
+  _overlaySnack = entry;
+  Overlay.of(context, rootOverlay: true).insert(entry);
+  Future.delayed(const Duration(seconds: 4), () {
+    if (_overlaySnack == entry) {
+      entry.remove();
+      _overlaySnack = null;
+    }
+  });
+}
+
+class _OverlaySnack extends StatelessWidget {
+  const _OverlaySnack(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final theme = Theme.of(context);
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: media.viewInsets.bottom + media.padding.bottom + 16,
+      child: IgnorePointer(
+        // 스낵바처럼 화면 낭독기(TalkBack · VoiceOver)가 뜨자마자 읽게 한다
+        child: Semantics(
+          liveRegion: true,
+          container: true,
+          child: Material(
+            color:
+                theme.snackBarTheme.backgroundColor ??
+                theme.colorScheme.inverseSurface,
+            elevation: 6,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Text(
+                message,
+                style:
+                    theme.snackBarTheme.contentTextStyle ??
+                    theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onInverseSurface,
+                    ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 void showError(BuildContext context, Object error) {
