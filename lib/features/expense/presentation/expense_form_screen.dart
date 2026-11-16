@@ -1060,7 +1060,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         const SizedBox(height: 12),
         SegmentedButton<SplitMethod>(
           segments: const [
-            ButtonSegment(value: SplitMethod.equal, label: Text('균등')),
+            ButtonSegment(value: SplitMethod.equal, label: Text('N분의 1')),
             ButtonSegment(value: SplitMethod.item, label: Text('항목별')),
             ButtonSegment(value: SplitMethod.custom, label: Text('개별 금액')),
           ],
