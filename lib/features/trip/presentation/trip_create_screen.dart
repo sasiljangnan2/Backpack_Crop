@@ -122,18 +122,17 @@ class _TripCreateScreenState extends State<TripCreateScreen> {
       final dates = _dates!;
       if (_editing) {
         final initial = widget.initial!;
-        await services.trips.update(
-          initial.id,
-          name: _name.text.trim(),
-          destination: _destination.text.trim(),
-          startDate: dates.start,
-          endDate: dates.end,
-          currencyCode: _preset.currencyCode == initial.currencyCode
-              ? null
-              : _preset.currencyCode,
-          timeZone: _preset.timeZone,
-        );
-        if (mounted) {
+        final shift = _daysBetween(initial.startDate, dates.start);
+        var move = false;
+        if (shift != 0) {
+          final answer = await _askMoveSchedules(shift);
+          if (answer == null) {
+            return;
+          }
+          move = answer;
+        }
+        final saved = await _saveEdit(initial, dates, moveSchedules: move);
+        if (saved && mounted) {
           Navigator.pop(context, initial.id);
         }
         return;
@@ -160,10 +159,7 @@ class _TripCreateScreenState extends State<TripCreateScreen> {
         return;
       }
       if (e.code == 'TRIP_PERIOD_CONFLICT') {
-        showSnack(
-          context,
-          '바꿀 기간 밖에 일정이 ${e.details['scheduleCount'] ?? ''}개 있어요. 일정을 먼저 옮겨 주세요.',
-        );
+        showSnack(context, _outsideMessage(e.details).split('\n').first);
       } else if (e.details.isNotEmpty) {
         setState(() => _errors = e.details);
       } else {
@@ -174,6 +170,96 @@ class _TripCreateScreenState extends State<TripCreateScreen> {
         setState(() => _busy = false);
       }
     }
+  }
+
+  // 기간 밖으로 밀려나는 일정이 있으면 날짜 · 개수를 보여 주고, 지우기로 하면 한 번 더 보낸다
+  Future<bool> _saveEdit(
+    TripDetail initial,
+    DateTimeRange dates, {
+    required bool moveSchedules,
+    bool dropOutside = false,
+  }) async {
+    try {
+      await services.trips.update(
+        initial.id,
+        name: _name.text.trim(),
+        destination: _destination.text.trim(),
+        startDate: dates.start,
+        endDate: dates.end,
+        currencyCode: _preset.currencyCode == initial.currencyCode
+            ? null
+            : _preset.currencyCode,
+        timeZone: _preset.timeZone,
+        moveSchedules: moveSchedules ? true : null,
+        dropOutside: dropOutside ? true : null,
+      );
+      return true;
+    } on ApiException catch (e) {
+      if (e.code != 'TRIP_PERIOD_CONFLICT' || dropOutside || !mounted) {
+        rethrow;
+      }
+      final drop = await confirm(
+        context,
+        title: '기간 밖 일정을 지울까요?',
+        message: _outsideMessage(e.details),
+        confirmLabel: '지우고 저장',
+        destructive: true,
+      );
+      if (!drop || !mounted) {
+        return false;
+      }
+      return _saveEdit(
+        initial,
+        dates,
+        moveSchedules: moveSchedules,
+        dropOutside: true,
+      );
+    }
+  }
+
+  // 출발일을 옮길 때: 일정 · 투표도 같은 날 수만큼 옮길지 묻는다 (null이면 취소)
+  Future<bool?> _askMoveSchedules(int shift) => showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('일정도 함께 옮길까요?'),
+      content: Text(
+        '출발일이 ${shift.abs()}일 ${shift > 0 ? '뒤로' : '앞으로'} 바뀌어요.\n'
+        '함께 옮기면 DAY 1 일정은 새 첫날로 가는 식으로, 모든 일정과 투표 날짜가 같이 옮겨져요.',
+        style: const TextStyle(height: 1.5),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('취소'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('날짜는 그대로'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('함께 옮기기'),
+        ),
+      ],
+    ),
+  );
+
+  static int _daysBetween(DateTime from, DateTime to) => DateTime.utc(
+    to.year,
+    to.month,
+    to.day,
+  ).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
+
+  // 서버가 알려 준 기간 밖 일정 · 투표 (TRIP_PERIOD_CONFLICT의 details)
+  static String _outsideMessage(Map<String, String> details) {
+    final schedules = int.tryParse(details['scheduleCount'] ?? '') ?? 0;
+    final polls = int.tryParse(details['pollCount'] ?? '') ?? 0;
+    final days = details['days'] ?? '';
+    final parts = [
+      if (schedules > 0) '${days.isEmpty ? '' : '$days의 '}일정 $schedules개',
+      if (polls > 0) '진행 중인 투표 $polls개',
+    ];
+    return '${parts.join('와 ')}가 새 기간 밖이에요.\n지우고 저장하면 되돌릴 수 없어요.';
   }
 
   @override

@@ -34,6 +34,8 @@ public record ExpenseDetailResponse(
 	long amountKrw,
 	SplitMethod splitMethod,
 	MemberRef payer,
+	boolean paidFromFund,
+	UUID scheduleId,
 	MemberRef creator,
 	List<ItemResponse> items,
 	List<MemberShareResponse> memberShares,
@@ -76,7 +78,7 @@ public record ExpenseDetailResponse(
 		Expense expense = bundle.expense();
 		boolean saved = expense.getId() != null;
 		String currencyCode = expense.getRateMode() == RateMode.KRW ? "KRW" : expense.getTrip().getCurrencyCode();
-		UUID payerId = expense.getPayer().getId();
+		UUID payerId = expense.isPaidFromFund() ? null : expense.getPayer().getId();
 
 		Map<UUID, MemberTotal> totals = new LinkedHashMap<>();
 		List<ItemResponse> items = bundle.items().stream().map(itemBundle -> {
@@ -105,7 +107,9 @@ public record ExpenseDetailResponse(
 			expense.getCategory(),
 			expense.getPaidDate(), currencyCode, expense.getRateMode(), expense.getAmountLocal(),
 			expense.getAppliedRate(), expense.getRateDate(), expense.getAmountKrw().longValueExact(),
-			expense.getSplitMethod(), MemberRef.from(expense.getPayer()), MemberRef.from(expense.getCreator()), items,
+			expense.getSplitMethod(), expense.isPaidFromFund() ? MemberRef.FUND : MemberRef.from(expense.getPayer()),
+			expense.isPaidFromFund(), expense.getSchedule() == null ? null : expense.getSchedule().getId(),
+			MemberRef.from(expense.getCreator()), items,
 			memberShares, saved ? expense.getVersion() : null, expense.getCreatedAt(), expense.getUpdatedAt());
 	}
 

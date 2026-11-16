@@ -74,9 +74,11 @@ class _SettlementViewState extends State<SettlementView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '각자 낸 돈에서 부담할 돈을 빼면 잔액이 나와요. 보낼 돈이 있는 사람과 받을 돈이 있는 사람을 이어 송금 건수를 줄였어요.',
-            style: TextStyle(fontSize: 13, color: AppColors.muted),
+          Text(
+            transfer.from.isFund || transfer.to.isFund
+                ? '공금을 모은 돈에서 각자 쓴 돈을 빼면 돌려받을 돈이 나와요. 남은 공금을 맡아 둔 사람이 돌려주면 돼요.'
+                : '각자 낸 돈에서 부담할 돈을 빼면 잔액이 나와요. 보낼 돈이 있는 사람과 받을 돈이 있는 사람을 이어 송금 건수를 줄였어요.',
+            style: const TextStyle(fontSize: 13, color: AppColors.muted),
           ),
           const SizedBox(height: 14),
           for (final member in [from, to])
@@ -98,6 +100,14 @@ class _SettlementViewState extends State<SettlementView> {
                         '낸 돈 ${Fmt.krw(member.paidKrw)} − 부담할 돈 ${Fmt.krw(member.shareKrw)}',
                         style: const TextStyle(fontSize: 13),
                       ),
+                      if (member.contributedKrw > 0)
+                        Text(
+                          '낸 돈에 공금 ${Fmt.krw(member.contributedKrw)} 포함',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.muted,
+                          ),
+                        ),
                       Text(
                         '= ${Fmt.signedKrw(member.balanceKrw)} (${member.balanceKrw >= 0 ? '받을 돈' : '보낼 돈'})',
                         style: TextStyle(
@@ -146,7 +156,7 @@ class _SettlementViewState extends State<SettlementView> {
         final reduced =
             settlement.directTransferCount > settlement.transfers.length &&
             settlement.transfers.isNotEmpty;
-        if (settlement.expenseCount == 0) {
+        if (settlement.expenseCount == 0 && settlement.fund == null) {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
             children: const [
@@ -230,6 +240,41 @@ class _SettlementViewState extends State<SettlementView> {
                 ],
               ),
             ),
+            if (settlement.fund case final fund?) ...[
+              const SizedBox(height: 12),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '공금',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _Line('모은 돈', Fmt.krw(fund.collectedKrw)),
+                    _Line('공금에서 낸 지출', Fmt.krw(fund.spentKrw)),
+                    _Line(
+                      fund.remainingKrw >= 0 ? '남은 공금' : '모자란 공금',
+                      Fmt.krw(fund.remainingKrw.abs()),
+                      bold: true,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      fund.remainingKrw >= 0
+                          ? '남은 공금은 아래 송금대로 돌려받아요.'
+                          : '모자란 만큼은 아래 송금대로 채워요.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             AppCard(
               child: Column(
@@ -793,6 +838,8 @@ class MySettlementScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     _Line('내가 낸 돈', Fmt.krw(mine.paidKrw)),
+                    if (mine.contributedKrw > 0)
+                      _Line('  그중 공금에 모은 돈', Fmt.krw(mine.contributedKrw)),
                     _Line('내가 부담할 돈', Fmt.krw(mine.shareKrw)),
                     const Divider(height: 18),
                     _Line(
@@ -826,7 +873,13 @@ class MySettlementScreen extends StatelessWidget {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  transfer.direction == TransferDirection.send
+                                  transfer.counterpart.isFund
+                                      ? (transfer.direction ==
+                                                TransferDirection.send
+                                            ? '모자란 공금 채우기'
+                                            : '남은 공금 돌려받기')
+                                      : transfer.direction ==
+                                            TransferDirection.send
                                       ? '${transfer.counterpart.name}님에게 보내기'
                                       : '${transfer.counterpart.name}님에게 받기',
                                 ),
@@ -869,7 +922,11 @@ class MySettlementScreen extends StatelessWidget {
                           ),
                           subtitle: Text(
                             '${Fmt.monthDay(line.paidDate)} · ${Fmt.krw(line.amountKrw)} · '
-                            '${line.isPaidByMe ? '내가 결제' : '${line.payer.name}님 결제'}\n'
+                            '${line.payer.isFund
+                                ? '공금에서 결제'
+                                : line.isPaidByMe
+                                ? '내가 결제'
+                                : '${line.payer.name}님 결제'}\n'
                             '내 몫 ${Fmt.krw(line.myShareKrw)}',
                             style: const TextStyle(fontSize: 12),
                           ),

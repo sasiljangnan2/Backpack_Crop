@@ -42,6 +42,8 @@ class TripApi {
     DateTime? endDate,
     String? currencyCode,
     String? timeZone,
+    bool? moveSchedules,
+    bool? dropOutside,
   }) async => TripDetail.fromJson(
     await _api.patch(
       '/api/trips/$tripId',
@@ -52,6 +54,10 @@ class TripApi {
         'endDate': ?(endDate == null ? null : dateParam(endDate)),
         'currencyCode': ?currencyCode,
         'timeZone': ?timeZone,
+        // 출발일이 바뀐 날 수만큼 일정 · 투표도 옮긴다
+        'moveSchedules': ?moveSchedules,
+        // 새 기간 밖에 남는 일정 · 진행 중 투표를 지운다 (없으면 409 TRIP_PERIOD_CONFLICT)
+        'dropOutside': ?dropOutside,
       },
     ) as Json,
   );

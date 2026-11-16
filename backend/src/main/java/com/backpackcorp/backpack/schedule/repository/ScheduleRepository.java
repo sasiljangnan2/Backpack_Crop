@@ -33,8 +33,4 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
 		where s.id = :id and s.trip.id = :tripId
 		""")
 	Optional<Schedule> findInTrip(@Param("id") UUID id, @Param("tripId") UUID tripId);
-
-	// 여행 기간을 바꿀 때 밖으로 밀려나는 일정 수
-	@Query("select count(s) from Schedule s where s.trip.id = :tripId and (s.day < :start or s.day > :end)")
-	long countOutside(@Param("tripId") UUID tripId, @Param("start") LocalDate start, @Param("end") LocalDate end);
 }

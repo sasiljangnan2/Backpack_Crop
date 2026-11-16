@@ -189,7 +189,7 @@ void main() {
     await tester.tap(find.text('AI로 다시 짜기'));
     await tester.pumpAndSettle();
     await capture(tester, 'ai-replan');
-    await tester.tap(find.text('추천 3안 받기'));
+    await tester.tap(find.text('추천안 받기'));
     await tester.pumpAndSettle();
     expect(find.text('추천안 비교'), findsOneWidget);
     await capture(tester, 'ai-compare');

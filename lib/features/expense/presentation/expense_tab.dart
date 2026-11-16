@@ -463,7 +463,7 @@ class _ExpenseRow extends StatelessWidget {
                     ),
                   const SizedBox(height: 6),
                   Text(
-                    '${item.payer.name} 결제',
+                    item.paidFromFund ? '공금에서 결제' : '${item.payer.name} 결제',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.muted,

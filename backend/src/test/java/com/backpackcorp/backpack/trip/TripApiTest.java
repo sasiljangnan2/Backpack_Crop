@@ -165,6 +165,74 @@ class TripApiTest {
 	}
 
 	@Test
+	void 출발일을_옮기면_일정과_투표도_같은_DAY로_옮긴다() throws Exception {
+		String tripId = createTrip(); // 10.02 ~ 10.05
+		perform(post("/api/trips/" + tripId + "/schedules"), 0, """
+			{"day":"2026-10-02","startTime":"10:00","endTime":"11:00","title":"공항","isLocked":true}
+			""").andExpect(status().isCreated());
+		perform(post("/api/trips/" + tripId + "/schedules"), 0, """
+			{"day":"2026-10-04","startTime":"18:00","endTime":"19:00","title":"저녁"}
+			""").andExpect(status().isCreated());
+		perform(post("/api/trips/" + tripId + "/polls"), 0, """
+			{"title":"셋째 날 점심","slotDate":"2026-10-04","slotStart":"12:00","slotEnd":"13:00",
+			 "options":[{"label":"라멘"},{"label":"초밥"}]}
+			""").andExpect(status().isCreated());
+
+		// 일주일 미룬다 (기간 길이는 그대로)
+		perform(patch("/api/trips/" + tripId), 0, """
+			{"startDate":"2026-10-09","endDate":"2026-10-12","moveSchedules":true}
+			""")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.startDate").value("2026-10-09"));
+
+		perform(get("/api/trips/" + tripId + "/schedules"), 0, null)
+			.andExpect(jsonPath("$[0].title").value("공항"))
+			.andExpect(jsonPath("$[0].day").value("2026-10-09"))
+			.andExpect(jsonPath("$[0].isLocked").value(true))
+			.andExpect(jsonPath("$[1].day").value("2026-10-11"));
+		perform(get("/api/trips/" + tripId + "/polls"), 0, null)
+			.andExpect(jsonPath("$[0].slotDate").value("2026-10-11"));
+	}
+
+	@Test
+	void 기간을_줄여_밖으로_밀려나는_일정은_확인한_뒤에만_지운다() throws Exception {
+		String tripId = createTrip(); // 10.02 ~ 10.05
+		perform(post("/api/trips/" + tripId + "/schedules"), 0, """
+			{"day":"2026-10-02","startTime":"10:00","endTime":"11:00","title":"공항"}
+			""").andExpect(status().isCreated());
+		perform(post("/api/trips/" + tripId + "/schedules"), 0, """
+			{"day":"2026-10-05","startTime":"10:00","endTime":"11:00","title":"귀국"}
+			""").andExpect(status().isCreated());
+		perform(post("/api/trips/" + tripId + "/polls"), 0, """
+			{"title":"마지막 날","slotDate":"2026-10-05","slotStart":"12:00","slotEnd":"13:00",
+			 "options":[{"label":"라멘"},{"label":"초밥"}]}
+			""").andExpect(status().isCreated());
+
+		// 하루 미루면서 하루 줄인다: DAY 4(10.05 → 10.06)가 밖으로 밀린다
+		String move = """
+			{"startDate":"2026-10-03","endDate":"2026-10-05","moveSchedules":true%s}
+			""";
+		perform(patch("/api/trips/" + tripId), 0, move.formatted(""))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("TRIP_PERIOD_CONFLICT"))
+			.andExpect(jsonPath("$.details.scheduleCount").value("1"))
+			.andExpect(jsonPath("$.details.pollCount").value("1"))
+			.andExpect(jsonPath("$.details.days").value("10.06"));
+		// 막혔을 때는 아무것도 바뀌지 않는다
+		perform(get("/api/trips/" + tripId + "/schedules"), 0, null)
+			.andExpect(jsonPath("$[0].day").value("2026-10-02"));
+
+		perform(patch("/api/trips/" + tripId), 0, move.formatted(",\"dropOutside\":true"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.endDate").value("2026-10-05"));
+		perform(get("/api/trips/" + tripId + "/schedules"), 0, null)
+			.andExpect(jsonPath("$.length()").value(1))
+			.andExpect(jsonPath("$[0].title").value("공항"))
+			.andExpect(jsonPath("$[0].day").value("2026-10-03"));
+		perform(get("/api/trips/" + tripId + "/polls"), 0, null).andExpect(jsonPath("$.length()").value(0));
+	}
+
+	@Test
 	void 일정이_밀려나는_기간_변경과_지출이_있는_통화_변경은_막는다() throws Exception {
 		String tripId = createTrip();
 		perform(post("/api/trips/" + tripId + "/schedules"), 0, """
@@ -173,7 +241,8 @@ class TripApiTest {
 		perform(patch("/api/trips/" + tripId), 0, "{\"endDate\":\"2026-10-04\"}")
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("TRIP_PERIOD_CONFLICT"))
-			.andExpect(jsonPath("$.details.scheduleCount").value("1"));
+			.andExpect(jsonPath("$.details.scheduleCount").value("1"))
+			.andExpect(jsonPath("$.details.days").value("10.05"));
 
 		String me = JsonPath.read(perform(get("/api/trips/" + tripId), 0, null).andReturn().getResponse()
 			.getContentAsString(), "$.myMemberId");

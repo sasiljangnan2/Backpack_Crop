@@ -62,7 +62,7 @@ import lombok.extern.slf4j.Slf4j;
 // BP-AI-002 · 003 오늘 남은 일정 다시 짜기.
 //   다시 짤 구간: 지금(또는 진행 중인 다른 일정이 끝나는 시각) ~ 그 뒤 처음 나오는 그대로 둘 일정(anchor, 보통 고정 일정)
 //   추천: Gemini 키가 있으면 AI가 고른 순서 · 장소를 실제 이동 시간으로 다시 맞추고, 없거나 실패하면 규칙 기반 3안.
-//         같은 순서의 안은 한 번만 보내므로 1~3안
+//         그중 서로 같은 안 · 지금 일정과 같은 안은 빼고 보여 준다 (PlanFilter)
 //   적용: 추천 뒤 그날 일정이 바뀌지 않았을 때만 (버전 비교). 빠지는 일정은 지우고, 바뀐 일정에는 "재구성" 표시
 @Slf4j
 @Service
@@ -116,13 +116,14 @@ public class ReplanService {
 			points.add(input.anchor().place());
 		}
 		TravelLookup travel = new TravelLookup(travelService, points);
-		List<ReplanResponse.Plan> plans = RulePlanner.plans(input, travel);
-		ReplanResponse.Source source = ReplanResponse.Source.RULE;
+		List<ReplanResponse.Plan> rulePlans = RulePlanner.plans(input, travel);
+		List<ReplanResponse.Plan> plans = rulePlans;
+		Set<PlanKey> aiKeys = Set.of();
+		boolean aiAvailable = aiPlanner.available();
 		String notice;
-		if (!aiPlanner.available()) {
+		if (!aiAvailable) {
 			notice = "AI 키가 설정되지 않아 기본 추천으로 만들었어요.";
 		} else {
-			List<ReplanResponse.Plan> rulePlans = plans;
 			Future<List<ReplanResponse.Plan>> ai = AI_EXECUTOR.submit(() -> {
 				List<AiPlanner.Draft> drafts = aiPlanner.suggest(prepared.aiContext());
 				List<LatLng> all = new ArrayList<>(points);
@@ -130,12 +131,12 @@ public class ReplanService {
 				return merge(drafts, rulePlans, input, new TravelLookup(travelService, all));
 			});
 			try {
-				List<ReplanResponse.Plan> merged = ai.get(aiBudget.toMillis(), TimeUnit.MILLISECONDS);
-				// 겹치는 안을 빼기도 하므로 목록 전체가 아니라 AI 안이 하나라도 들어갔는지로 가린다
-				boolean usedAi = merged.stream().anyMatch(plan -> !rulePlans.contains(plan));
-				source = usedAi ? ReplanResponse.Source.AI : ReplanResponse.Source.RULE;
-				notice = usedAi ? null : "AI 추천이 시간에 맞지 않아 기본 추천을 보여 드려요.";
-				plans = merged;
+				plans = ai.get(aiBudget.toMillis(), TimeUnit.MILLISECONDS);
+				aiKeys = plans.stream()
+					.filter(plan -> !rulePlans.contains(plan))
+					.map(ReplanResponse.Plan::key)
+					.collect(Collectors.toSet());
+				notice = null;
 			} catch (TimeoutException e) {
 				ai.cancel(true);
 				log.warn("AI 일정 재구성이 {}초를 넘어 규칙 기반 추천으로 대신", aiBudget.toSeconds());
@@ -148,17 +149,32 @@ public class ReplanService {
 				notice = "AI 응답을 받지 못해 기본 추천을 보여 드려요.";
 			}
 		}
-		// 규칙 기반 안끼리도 같은 순서일 수 있다. 키가 없거나 AI가 실패해 규칙 기반 안을 보낼 때도 같은 안은 한 번만 보낸다
-		plans = withoutRepeats(plans);
+		// 같은 안은 하나로, 지금 일정과 같은 안은 빼서 보여 줄 만한 안만 남긴다 (0~3개)
+		int made = plans.size();
+		plans = PlanFilter.distinct(plans, prepared.current());
+		// 이름이 합쳐져도 대표 안의 키는 유지된다.
+		boolean usedAi = plans.stream().map(ReplanResponse.Plan::key).anyMatch(aiKeys::contains);
+		ReplanResponse.Source source = usedAi ? ReplanResponse.Source.AI : ReplanResponse.Source.RULE;
+		if (plans.isEmpty()) {
+			notice = "바꿀 만한 추천안이 없어요. 지금 일정이 이미 고른 조건에 잘 맞아요."
+				+ (aiAvailable && notice != null ? " (AI 응답은 받지 못했어요)" : "");
+		} else {
+			if (!usedAi && notice == null) {
+				notice = "AI 추천이 시간에 맞지 않아 기본 추천을 보여 드려요.";
+			}
+			if (plans.size() < made) {
+				String filtered = "겹치거나 지금 일정과 같은 안은 빼고 " + plans.size() + "안만 보여 드려요.";
+				notice = notice == null ? filtered : notice + " " + filtered;
+			}
+		}
 		ReplanResponse response = new ReplanResponse(UUID.randomUUID(), source, notice, prepared.context(), plans);
 		cache().put(response.requestId(), new Snapshot(tripId, prepared.day(), prepared.versions(),
 			prepared.targetIds(), response));
 		return response;
 	}
 
-	// AI 안을 실제 이동 시간으로 맞춘다. 하나도 담지 못한 안은 같은 기준의 규칙 기반 안으로 바꾼다.
-	// 같은 카드가 두 장 나오지 않게, 앞의 안과 같은 곳을 같은 순서로 들르는 AI 안은 규칙 기반 안으로 바꾸고,
-	// 그것도 앞의 안과 같으면 그 안은 빼고 보낸다 (그래서 2안 이하일 수 있다. 첫 안은 항상 들어간다)
+	// AI 안을 이동 시간에 맞춘다. 비어 있거나 앞의 안과 같으면 같은 기준의 규칙 기반 안으로 바꾼다.
+	// 대체안끼리도 겹칠 수 있어 최종 필터에서 이름을 합친다.
 	static List<ReplanResponse.Plan> merge(List<AiPlanner.Draft> drafts, List<ReplanResponse.Plan> rulePlans,
 		RulePlanner.Input input, RulePlanner.Travel travel) {
 		Map<PlanKey, AiPlanner.Draft> byKey = drafts.stream()
@@ -166,16 +182,11 @@ public class ReplanService {
 		List<ReplanResponse.Plan> merged = new ArrayList<>();
 		for (ReplanResponse.Plan rule : rulePlans) {
 			ReplanResponse.Plan ai = fitDraft(byKey.get(rule.key()), rule.key(), input, travel);
-			boolean aiRepeats = ai != null && sameRouteAsAny(ai, merged);
-			ReplanResponse.Plan chosen = ai != null && !aiRepeats ? ai : rule;
-			if (sameRouteAsAny(chosen, merged)) {
-				log.info("'{}' 안이 앞의 안과 같은 순서라 빼고 보냄", rule.label());
-				continue;
-			}
+			boolean aiRepeats = ai != null && merged.stream().anyMatch(plan -> PlanFilter.same(ai, plan));
 			if (aiRepeats) {
-				log.info("AI '{}' 안이 앞의 안과 같은 순서라 규칙 기반 안으로 바꿈", rule.label());
+				log.info("AI '{}' 안이 앞의 안과 겹쳐 규칙 기반 안으로 바꿈", rule.label());
 			}
-			merged.add(chosen);
+			merged.add(ai != null && !aiRepeats ? ai : rule);
 		}
 		return merged;
 	}
@@ -195,31 +206,6 @@ public class ReplanService {
 			fitted = RulePlanner.fit(key, draft.stops(), input, travel, true, draft.reason());
 		}
 		return RulePlanner.withDropped(fitted, input);
-	}
-
-	// 앞의 안과 같은 곳을 같은 순서로 들르는 안을 뺀다. 첫 안은 항상 남는다
-	static List<ReplanResponse.Plan> withoutRepeats(List<ReplanResponse.Plan> plans) {
-		List<ReplanResponse.Plan> kept = new ArrayList<>();
-		for (ReplanResponse.Plan plan : plans) {
-			if (sameRouteAsAny(plan, kept)) {
-				log.info("'{}' 안이 앞의 안과 같은 순서라 빼고 보냄", plan.label());
-				continue;
-			}
-			kept.add(plan);
-		}
-		return kept;
-	}
-
-	private static boolean sameRouteAsAny(ReplanResponse.Plan plan, List<ReplanResponse.Plan> others) {
-		List<String> route = route(plan);
-		return others.stream().anyMatch(other -> route(other).equals(route));
-	}
-
-	// 들르는 곳의 순서. 기존 일정은 id로, 새로 넣는 일정은 제목으로 가린다
-	private static List<String> route(ReplanResponse.Plan plan) {
-		return plan.items().stream()
-			.map(item -> item.scheduleId() != null ? item.scheduleId().toString() : "new:" + item.title())
-			.toList();
 	}
 
 	@Transactional
@@ -360,7 +346,10 @@ public class ReplanService {
 			activities.size(), delay, anchorView);
 		AiPlanner.Context aiContext = new AiPlanner.Context(trip.getDestination(), now.toString(),
 			windowStart.toString(), windowEnd.toString(), originName, origin, anchorStop, stops, conditions);
-		return new Prepared(today, input, context, aiContext, versionsOf(day), List.copyOf(targetIds));
+		List<PlanFilter.Current> before = targets.stream()
+			.map(s -> new PlanFilter.Current(s.getId(), s.getStartTime(), s.getEndTime()))
+			.toList();
+		return new Prepared(today, input, context, aiContext, versionsOf(day), List.copyOf(targetIds), before);
 	}
 
 	private static Stop stopOf(Schedule s) {
@@ -408,7 +397,8 @@ public class ReplanService {
 		ReplanResponse.Context context,
 		AiPlanner.Context aiContext,
 		HashMap<UUID, Integer> versions,
-		List<UUID> targetIds
+		List<UUID> targetIds,
+		List<PlanFilter.Current> current
 	) {
 	}
 

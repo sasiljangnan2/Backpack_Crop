@@ -48,6 +48,7 @@ public interface ExpenseItemUserRepository extends JpaRepository<ExpenseItemUser
 		from ExpenseItemUser u
 		where u.item.expense.trip.id = :tripId
 		  and u.shareKrw > 0
+		  and u.item.expense.paidFromFund = false
 		  and u.member.id <> u.item.expense.payer.id
 		""")
 	List<Object[]> findDebtPairs(@Param("tripId") UUID tripId);

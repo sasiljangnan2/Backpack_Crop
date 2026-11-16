@@ -153,8 +153,10 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                         ),
                       const SizedBox(height: 10),
                       Text(
-                        '${expense.payer.name}님 결제'
-                        '${expense.creator.memberId == expense.payer.memberId ? '' : ' · ${expense.creator.name}님이 대신 입력'}',
+                        expense.paidFromFund
+                            ? '공금에서 결제 · ${expense.creator.name}님이 입력'
+                            : '${expense.payer.name}님 결제'
+                                  '${expense.creator.memberId == expense.payer.memberId ? '' : ' · ${expense.creator.name}님이 대신 입력'}',
                         style: const TextStyle(fontSize: 13),
                       ),
                     ],

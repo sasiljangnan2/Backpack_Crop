@@ -7,7 +7,10 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -31,6 +34,7 @@ public class ExchangeRateCollector {
 
 	private static final Duration RETRY_AFTER_FAILURE = Duration.ofMinutes(30);
 	private static final Duration RETRY_EARLIER_DATE = Duration.ofHours(3);
+	private static final ExecutorService BACKGROUND = Executors.newVirtualThreadPerTaskExecutor();
 
 	private final List<ExchangeRateProvider> providers;
 	private final ExchangeRateRepository exchangeRateRepository;
@@ -38,6 +42,8 @@ public class ExchangeRateCollector {
 	private final Clock clock;
 	private final boolean enabled;
 	private final Map<String, Attempt> attempts = new ConcurrentHashMap<>();
+	// 뒤에서 가져오는 중인 (통화, 날짜). 요청이 몰려도 한 번만 가져온다
+	private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
 
 	public ExchangeRateCollector(List<ExchangeRateProvider> providers, ExchangeRateRepository exchangeRateRepository,
 		PlatformTransactionManager transactionManager, Clock clock,
@@ -75,6 +81,27 @@ public class ExchangeRateCollector {
 		attempts.put(key, new Attempt(Optional.empty(), now.plus(RETRY_AFTER_FAILURE)));
 		log.info("환율을 가져오지 못했습니다: {} {}", currencyCode, date);
 		return Optional.empty();
+	}
+
+	// 기다리지 않는 collect: 화면 요청은 저장된 값으로 바로 답하고, 오늘 값은 뒤에서 가져와 저장한다
+	public void collectLater(String currencyCode, LocalDate date) {
+		if (!enabled) {
+			return;
+		}
+		String key = currencyCode + "|" + date;
+		Attempt previous = attempts.get(key);
+		if ((previous != null && previous.until().isAfter(Instant.now(clock))) || !inFlight.add(key)) {
+			return;
+		}
+		BACKGROUND.execute(() -> {
+			try {
+				collect(currencyCode, date);
+			} catch (RuntimeException e) {
+				log.warn("환율을 뒤에서 가져오지 못했습니다: {} {} ({})", currencyCode, date, e.toString());
+			} finally {
+				inFlight.remove(key);
+			}
+		});
 	}
 
 	private record Attempt(Optional<AppliedRate> result, Instant until) {

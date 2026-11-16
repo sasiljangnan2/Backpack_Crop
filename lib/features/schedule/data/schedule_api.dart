@@ -29,6 +29,7 @@ class ScheduleApi {
     Place? place,
     String? memo,
     ReservationStatus reservation = ReservationStatus.none,
+    TimeOfDay? reservationTime,
     bool locked = false,
   }) async => Schedule.fromJson(
     await _api.post(
@@ -44,13 +45,17 @@ class ScheduleApi {
         'placeCategory': ?(place == null ? null : enumName(place.category)),
         'memo': memo,
         'reservationStatus': enumName(reservation),
+        'reservationTime': ?(reservationTime == null
+            ? null
+            : timeParam(reservationTime)),
         'isLocked': locked,
       },
     ) as Json,
   );
 
   /// 보낸 값만 바뀐다. [placeText]·[memo]는 빈 문자열이면 지워진다.
-  /// [placeText]와 함께 [place]를 보내면 좌표를 바꾸고, 없이 보내면(다른 이름이면) 좌표가 지워진다
+  /// [placeText]와 함께 [place]를 보내면 좌표를 바꾸고, 없이 보내면(다른 이름이면) 좌표가 지워진다.
+  /// [reservation]을 보내면 [reservationTime]도 함께 바뀐다 (없으면 예약 시간이 지워진다)
   Future<Schedule> update(
     String tripId,
     String scheduleId, {
@@ -63,6 +68,7 @@ class ScheduleApi {
     Place? place,
     String? memo,
     ReservationStatus? reservation,
+    TimeOfDay? reservationTime,
     bool? locked,
   }) async => Schedule.fromJson(
     await _api.patch(
@@ -81,6 +87,9 @@ class ScheduleApi {
         'reservationStatus': ?(reservation == null
             ? null
             : enumName(reservation)),
+        'reservationTime': ?(reservationTime == null
+            ? null
+            : timeParam(reservationTime)),
         'isLocked': ?locked,
       },
     ) as Json,

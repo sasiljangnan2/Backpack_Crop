@@ -9,6 +9,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/widgets/common.dart';
 import '../../trip/data/trip_models.dart';
+import '../../place/data/place_models.dart';
+import '../../schedule/data/schedule_models.dart';
+import '../../settlement/data/settlement_models.dart';
 import '../data/expense_models.dart';
 import '../data/receipt_parser.dart';
 import 'translation_text.dart';
@@ -22,11 +25,15 @@ class ExpenseFormScreen extends StatefulWidget {
     required this.trip,
     this.existing,
     this.receipt,
+    this.fromSchedule,
   });
 
   final TripDetail trip;
   final ExpenseDetail? existing;
   final ReceiptScan? receipt;
+
+  /// 일정의 "예약 결제 정보"에서 왔을 때: 내용 · 날짜를 채우고 지출을 일정과 잇는다 (BP-SC-002 ⑥)
+  final Schedule? fromSchedule;
 
   @override
   State<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
@@ -84,6 +91,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   bool _busy = false;
 
   SplitMethod _split = SplitMethod.equal;
+
+  /// 공금에서 낸 지출. 이때 _payerId는 입력한 사람이다
+  bool _fromFund = false;
+  Fund? _fund;
+  String? _scheduleId;
   late Set<String> _equalMembers = {
     for (final m in widget.trip.members) m.memberId,
   };
@@ -128,7 +140,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       _titleOriginal = existing.title.trim();
       _titleKo = existing.titleKo;
       _category = existing.category;
-      _payerId = existing.payer.memberId;
+      _fromFund = existing.paidFromFund;
+      _scheduleId = existing.scheduleId;
+      _payerId = existing.paidFromFund
+          ? trip.myMemberId
+          : existing.payer.memberId;
       _paidDate = existing.paidDate;
       _krw = existing.rateMode == RateMode.krw;
       if (!_krw) {
@@ -173,12 +189,56 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     if (existing == null && receipt != null) {
       _fillFromReceipt(receipt);
     }
+    final schedule = widget.fromSchedule;
+    if (existing == null && schedule != null) {
+      _fillFromSchedule(schedule);
+    }
+    services.expenses.fund(trip.id).then<void>((fund) {
+      if (mounted) {
+        setState(() => _fund = fund);
+      }
+    }, onError: (Object _) {});
     _refreshRate();
   }
 
   String _amountText(double value) => value == value.roundToDouble()
       ? value.round().toString()
       : value.toStringAsFixed(2);
+
+  void _fillFromSchedule(Schedule schedule) {
+    _title.text = schedule.title;
+    _titleOriginal = schedule.title.trim();
+    _paidDate = schedule.day;
+    _scheduleId = schedule.id;
+    _category = switch (schedule.placeCategory) {
+      PlaceCategory.lodging => ExpenseCategory.lodging,
+      PlaceCategory.transport => ExpenseCategory.transport,
+      PlaceCategory.sight || PlaceCategory.park => ExpenseCategory.activity,
+      PlaceCategory.shopping => ExpenseCategory.shopping,
+      _ => ExpenseCategory.food,
+    };
+  }
+
+  // 공금을 고르면 결제자가 없으므로 결제자 환전 환율은 쓸 수 없다
+  void _chooseFund(bool on) {
+    if (on && (_fund?.collectedKrw ?? 0) <= 0) {
+      showSnack(context, '아직 모은 공금이 없어요. 경비 > 예산에서 먼저 모아 주세요.');
+      return;
+    }
+    setState(() {
+      _fromFund = on;
+      if (on) {
+        _payerId = trip.myMemberId;
+        if (_foreignMode == RateMode.prepaid) {
+          _foreignMode = RateMode.api;
+          _refreshRate();
+        }
+      }
+    });
+    if (_step == 1) {
+      _schedulePreview();
+    }
+  }
 
   void _fillFromReceipt(ReceiptScan receipt) {
     _title.text = receipt.store ?? '';
@@ -293,6 +353,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final amount = _parse(_amount.text) ?? 0;
     final draft = ExpenseDraft(
       payerMemberId: _payerId,
+      paidFromFund: _fromFund,
+      scheduleId: _scheduleId,
       title: _title.text.trim(),
       titleKo: _titleTranslation,
       category: _category,
@@ -378,6 +440,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       // 금액·환율이 맞는지 먼저 서버 계산으로 확인한다 (균등 분담으로 미리보기)
       final check = ExpenseDraft(
         payerMemberId: _payerId,
+        paidFromFund: _fromFund,
         title: _title.text.trim(),
         category: _category,
         paidDate: _paidDate,
@@ -542,17 +605,42 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           spacing: 8,
           runSpacing: 8,
           children: [
+            ChoiceChip(
+              selected: _fromFund,
+              showCheckmark: false,
+              avatar: const Icon(
+                Icons.account_balance_wallet_outlined,
+                size: 16,
+              ),
+              label: const Text('공금'),
+              onSelected: (_) => _chooseFund(true),
+            ),
             for (final member in trip.members)
               ChoiceChip(
-                selected: member.memberId == _payerId,
+                selected: !_fromFund && member.memberId == _payerId,
                 showCheckmark: false,
                 avatar: MemberAvatar(member.name, radius: 10),
                 label: Text(member.isMe ? '${member.name} (나)' : member.name),
-                onSelected: (_) => setState(() => _payerId = member.memberId),
+                onSelected: (_) => setState(() {
+                  _fromFund = false;
+                  _payerId = member.memberId;
+                }),
               ),
           ],
         ),
-        if (_payerId != trip.myMemberId)
+        if (_fromFund && _fund != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              '남은 공금 ${Fmt.krw(_fund!.remainingKrw)}에서 내요',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.primaryText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          )
+        else if (_payerId != trip.myMemberId)
           const Padding(
             padding: EdgeInsets.only(top: 6),
             child: Text(
@@ -652,13 +740,14 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                   _refreshRate();
                 }),
               ),
-              ChoiceChip(
-                selected: _foreignMode == RateMode.prepaid,
-                showCheckmark: false,
-                label: const Text('결제자 환전 환율'),
-                onSelected: (_) =>
-                    setState(() => _foreignMode = RateMode.prepaid),
-              ),
+              if (!_fromFund)
+                ChoiceChip(
+                  selected: _foreignMode == RateMode.prepaid,
+                  showCheckmark: false,
+                  label: const Text('결제자 환전 환율'),
+                  onSelected: (_) =>
+                      setState(() => _foreignMode = RateMode.prepaid),
+                ),
               ChoiceChip(
                 selected: _foreignMode == RateMode.manual,
                 showCheckmark: false,
@@ -960,13 +1049,15 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                   style: const TextStyle(fontSize: 12, color: AppColors.muted),
                 ),
               Text(
-                '${_payer.name}님 결제',
+                _fromFund ? '공금에서 결제' : '${_payer.name}님 결제',
                 style: const TextStyle(fontSize: 12, color: AppColors.muted),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        _fundChoice(preview),
+        const SizedBox(height: 12),
         SegmentedButton<SplitMethod>(
           segments: const [
             ButtonSegment(value: SplitMethod.equal, label: Text('균등')),
@@ -1005,13 +1096,59 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     );
   }
 
+  // 나눌 사람에 공금 추가 (교수님 피드백): 공금에서 내도 누가 썼는지는 아래에서 고른다
+  Widget _fundChoice(ExpenseDetail? preview) {
+    final fund = _fund;
+    final amount = preview?.amountKrw ?? 0;
+    final after = fund == null
+        ? 0
+        : fund.remainingKrw -
+              amount +
+              (widget.existing?.paidFromFund == true
+                  ? widget.existing!.amountKrw
+                  : 0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FilterChip(
+          selected: _fromFund,
+          showCheckmark: false,
+          avatar: const Icon(Icons.account_balance_wallet_outlined, size: 16),
+          label: Text(
+            fund == null
+                ? '공금에서 내기'
+                : '공금에서 내기 · 잔액 ${Fmt.krw(fund.remainingKrw)}',
+          ),
+          onSelected: _chooseFund,
+        ),
+        if (_fromFund && fund != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              after < 0
+                  ? '공금이 ${Fmt.krw(-after)} 모자라요. 공금을 더 모으거나 결제자를 바꿔 주세요.'
+                  : '이 지출을 내면 공금 ${Fmt.krw(after)}이 남아요. 아래에서 함께 쓴 사람을 골라 주세요.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: after < 0 ? AppColors.error : AppColors.muted,
+                fontWeight: after < 0 ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _equalEditor() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Row(
         children: [
           Text(
-            '나눌 사람 ${_equalMembers.length}명',
+            _fromFund
+                ? '함께 쓴 사람 ${_equalMembers.length}명'
+                : '나눌 사람 ${_equalMembers.length}명',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           const Spacer(),
@@ -1429,7 +1566,7 @@ class _ExpenseDoneScreen extends StatelessWidget {
                   ),
                   Text(
                     '${expense.amountLocal == null ? '' : '${Fmt.money(expense.amountLocal!, trip.currencyCode)} · '}'
-                    '${expense.payer.name}님 결제 · $split',
+                    '${expense.paidFromFund ? '공금에서 결제' : '${expense.payer.name}님 결제'} · $split',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.muted,

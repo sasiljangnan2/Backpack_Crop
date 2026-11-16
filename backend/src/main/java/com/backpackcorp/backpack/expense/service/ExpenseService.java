@@ -43,11 +43,14 @@ import com.backpackcorp.backpack.expense.dto.MemberRef;
 import com.backpackcorp.backpack.expense.repository.ExpenseItemRepository;
 import com.backpackcorp.backpack.expense.repository.ExpenseItemUserRepository;
 import com.backpackcorp.backpack.expense.repository.ExpenseRepository;
+import com.backpackcorp.backpack.fund.service.FundService;
 import com.backpackcorp.backpack.global.exception.BaseException;
 import com.backpackcorp.backpack.global.exception.ErrorCode;
 import com.backpackcorp.backpack.notification.domain.NotificationRefType;
 import com.backpackcorp.backpack.notification.domain.NotificationType;
 import com.backpackcorp.backpack.notification.dto.TripNotificationEvent;
+import com.backpackcorp.backpack.schedule.domain.Schedule;
+import com.backpackcorp.backpack.schedule.repository.ScheduleRepository;
 import com.backpackcorp.backpack.trip.domain.Trip;
 import com.backpackcorp.backpack.trip.domain.TripMember;
 import com.backpackcorp.backpack.trip.repository.TripMemberRepository;
@@ -73,6 +76,8 @@ public class ExpenseService {
 	private final ExpenseItemRepository expenseItemRepository;
 	private final ExpenseItemUserRepository expenseItemUserRepository;
 	private final ExchangeRateService exchangeRateService;
+	private final FundService fundService;
+	private final ScheduleRepository scheduleRepository;
 	private final ApplicationEventPublisher eventPublisher;
 
 	public ExpenseListResponse getExpenses(UUID tripId, UUID userId, LocalDate date, ExpenseCategory category,
@@ -121,6 +126,7 @@ public class ExpenseService {
 	public ExpenseDetailResponse createExpense(UUID tripId, UUID userId, ExpenseRequest request) {
 		TripMember me = tripMemberGuard.requireMember(tripId, userId);
 		Plan plan = plan(me, request, null);
+		requireFundBalance(plan.expense(), null);
 		expenseRepository.save(plan.expense());
 		ExpenseDetailResponse response = ExpenseDetailResponse.from(saveItems(plan));
 		String message = MemberRef.nameOf(me) + "님이 '" + response.title() + "' 지출을 추가했어요 · ₩"
@@ -153,6 +159,7 @@ public class ExpenseService {
 		// 일괄 삭제가 영속성 컨텍스트를 비우므로 지출을 다시 읽는다
 		Expense reloaded = findExpense(tripId, expenseId);
 		Plan plan = plan(reloaded.getCreator(), request, reloaded);
+		requireFundBalance(plan.expense(), expenseId);
 		ExpenseBundle bundle = saveItems(plan);
 		// 응답의 version이 이번 수정을 반영하도록 먼저 반영한다
 		expenseRepository.flush();
@@ -167,6 +174,13 @@ public class ExpenseService {
 		expenseItemUserRepository.deleteByExpenseId(expense.getId());
 		expenseItemRepository.deleteByExpenseId(expense.getId());
 		expenseRepository.deleteById(expense.getId());
+	}
+
+	private void requireFundBalance(Expense expense, UUID excludeExpenseId) {
+		if (expense.isPaidFromFund()) {
+			fundService.requireBalance(expense.getTrip().getId(), expense.getAmountKrw().longValueExact(),
+				excludeExpenseId);
+		}
 	}
 
 	private ExpenseBundle saveItems(Plan plan) {
@@ -215,12 +229,22 @@ public class ExpenseService {
 		if (payer == null) {
 			throw invalid("payerMemberId", "이 여행의 멤버만 결제자로 선택할 수 있어요.");
 		}
+		boolean fromFund = Boolean.TRUE.equals(request.paidFromFund());
+		if (fromFund && request.rateMode() == RateMode.PREPAID) {
+			throw invalid("rateMode", "공금 지출은 결제자 환전 환율을 쓸 수 없어요. 오늘 환율이나 직접 입력을 골라 주세요.");
+		}
+		Schedule schedule = null;
+		if (request.scheduleId() != null) {
+			schedule = scheduleRepository.findInTrip(request.scheduleId(), trip.getId())
+				.orElseThrow(() -> invalid("scheduleId", "이 여행의 일정만 연결할 수 있어요."));
+		}
 
 		Money money = resolveMoney(trip, payer, request, existing);
 		List<ExpenseItemRequest> itemRequests = normalizeItems(request);
 		List<Long> itemAmountsKrw = allocateItems(request, money, itemRequests);
 
-		Expense planned = Expense.builder().trip(trip).payer(payer).creator(creator).title(request.title().trim())
+		Expense planned = Expense.builder().trip(trip).schedule(schedule).payer(payer).paidFromFund(fromFund)
+			.creator(creator).title(request.title().trim())
 			.titleKo(blankToNull(request.titleKo())).category(request.category()).paidDate(request.paidDate()).amountLocal(money.amountLocal())
 			.rateMode(request.rateMode()).appliedRate(money.rate()).rateDate(money.rateDate())
 			.amountKrw(BigDecimal.valueOf(money.amountKrw())).splitMethod(request.splitMethod()).build();

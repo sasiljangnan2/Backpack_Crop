@@ -249,14 +249,17 @@ class _PlanCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(
-                    plan.label,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                  // 같은 안을 합치면 "이동 최소 · 시간 여유 우선"처럼 길어진다
+                  Expanded(
+                    child: Text(
+                      plan.label,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   selected
                       ? const Row(
                           children: [

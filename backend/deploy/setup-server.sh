@@ -95,10 +95,11 @@ if command -v snap >/dev/null; then
 	done
 fi
 
-# 처음 설치는 이미지(MySQL 등 약 1GB) 자리가, 업데이트는 새 서버 이미지 자리만 있으면 된다
-need_mb=500
+# 처음 설치는 이미지(MySQL 등 약 1.4GB)와 서버 이미지 자리가, 업데이트는 새 서버 이미지를 만드는 자리가 있어야 한다
+# (올린 jar · 기반 Java 이미지 · 새 층의 압축본과 풀어 둔 것까지 약 0.7GB. 모자라면 빌드 도중에 멈춘다)
+need_mb=1000
 if ! docker image inspect mysql:8.4 >/dev/null 2>&1; then
-	need_mb=1500
+	need_mb=2200
 fi
 # 예전 설치가 만든 큰 스왑(2GB)은 작은 디스크에서 줄인다. 스왑에 든 내용을 메모리로 옮겨야 하므로,
 # 메모리가 모자라면 컨테이너를 잠깐 멈춘다 (아래 4/5에서 다시 띄운다)
@@ -167,13 +168,27 @@ EOF
 		if [ "$mem_mb" -lt 2048 ]; then
 			cat >> .env <<'EOF'
 # 메모리 1GB 서버용 (setup-server.sh가 넣었다)
-JAVA_TOOL_OPTIONS=-Xms96m -Xmx320m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC
+JAVA_TOOL_OPTIONS=-Xms96m -Xmx320m -Xss512k -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=48m -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError
 MYSQL_BUFFER_POOL=64M
 EOF
 		fi
 	)
 elif [ -n "${DOMAIN:-}" ]; then
 	sed -i "s|^DOMAIN=.*|DOMAIN=$DOMAIN|" .env
+fi
+# 예전 설치가 넣은 1GB 서버용 Java 옵션이면 새 값으로 바꾼다 (직접 고친 값은 그대로 둔다).
+# 가벼운 컴파일러(C1)만 써서 vCPU 1개 · 메모리 1GB에서 컴파일 스레드 · 코드 캐시가 덜 차지하고,
+# 메모리가 바닥나면 버티지 않고 재시작한다(restart: unless-stopped)
+old_java='JAVA_TOOL_OPTIONS=-Xms96m -Xmx320m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC'
+new_java='JAVA_TOOL_OPTIONS=-Xms96m -Xmx320m -Xss512k -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=48m -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError'
+if grep -qxF "$old_java" .env; then
+	(
+		umask 077
+		{ grep -vxF "$old_java" .env; echo "$new_java"; } > .env.new
+	)
+	cat .env.new > .env
+	rm -f .env.new
+	echo "Java 옵션을 1GB 서버용 새 값으로 바꿨어요"
 fi
 # PC의 backend/.env에서 넘겨준 API 키(deploy-cloud.ps1)를 넣는다. 넘겨주지 않은 키는 그대로 둔다
 for name in GEMINI_API_KEY GOOGLE_MAPS_API_KEY EXIM_API_KEY; do
@@ -190,18 +205,31 @@ domain=$(sed -n 's/^DOMAIN=//p' .env)
 mkdir -p secrets
 
 echo "== 4/5 서버 시작 (처음에는 이미지를 받느라 몇 분 걸려요)"
-# 큰 이미지(MySQL 등)는 받다가 연결이 끊길 때가 있다. 받은 층은 남으므로 다시 받으면 이어서 받는다
-for attempt in 1 2 3; do
-	if docker compose pull --quiet --ignore-buildable; then
-		break
+# MySQL · Redis · Caddy는 없는 이미지만 받는다. 업데이트 때마다 같은 태그의 새 판을 받으면 돌아가는 판과 새 판이
+# 디스크에 함께 남아(MySQL만 1GB) 10GB 디스크가 차고, 새 서버가 임시 파일을 못 만들어 뜨지 못한다.
+# 새 판으로 올리고 싶으면 디스크 여유를 본 뒤 직접 올린다 (docs/deploy-cloud.md의 '운영 메모')
+missing=()
+for service in $(docker compose config --services); do
+	image=$(docker compose config --images "$service" 2>/dev/null | head -n 1 || true)
+	if [ -n "$image" ] && ! docker image inspect "$image" >/dev/null 2>&1; then
+		missing+=("$service")
 	fi
-	if [ "$attempt" = 3 ]; then
-		echo "이미지를 받지 못했어요. 인터넷 연결을 확인하고 다시 실행해 주세요." >&2
-		exit 1
-	fi
-	echo "이미지를 받다가 끊겼어요. 다시 받아요 ($attempt/3)"
-	sleep 5
 done
+# 큰 이미지(MySQL 등)는 받다가 연결이 끊길 때가 있다. 받은 층은 남으므로 다시 받으면 이어서 받는다.
+# 이 폴더에서 빌드하는 서버(backend)는 받지 않고 아래 up --build가 만든다
+if [ "${#missing[@]}" -gt 0 ]; then
+	for attempt in 1 2 3; do
+		if docker compose pull --quiet --ignore-buildable "${missing[@]}"; then
+			break
+		fi
+		if [ "$attempt" = 3 ]; then
+			echo "이미지를 받지 못했어요. 인터넷 연결을 확인하고 다시 실행해 주세요." >&2
+			exit 1
+		fi
+		echo "이미지를 받다가 끊겼어요. 다시 받아요 ($attempt/3)"
+		sleep 5
+	done
+fi
 docker compose up -d --build --remove-orphans
 # 지난 서버 이미지와 빌드 캐시(약 0.5GB)를 지운다. 다음 배포는 새 jar로 다시 빌드하므로 필요 없다
 docker image prune -f >/dev/null
@@ -225,6 +253,9 @@ for _ in $(seq 1 60); do
 	status=$(curl "${curl_args[@]}" "https://$domain/api/trips" || true)
 	if [ "$status" = "401" ]; then
 		echo "준비됐어요: https://$domain"
+		# 느려지면 먼저 볼 것: 남은 메모리 · 스왑, 컨테이너별 메모리
+		free -m | head -3
+		docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}' || true
 		exit 0
 	fi
 	sleep 5

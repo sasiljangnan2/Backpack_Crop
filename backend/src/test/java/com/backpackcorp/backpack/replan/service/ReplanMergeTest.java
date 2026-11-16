@@ -16,7 +16,7 @@ import com.backpackcorp.backpack.replan.domain.PlanKey;
 import com.backpackcorp.backpack.replan.domain.ReplanCondition;
 import com.backpackcorp.backpack.replan.dto.ReplanResponse;
 
-// AI 안을 규칙 기반 안과 합칠 때, 같은 곳을 같은 순서로 들르는 안이 두 장 나오지 않게 한다
+// AI 추천과 규칙 기반 대체안을 같은 기준으로 비교한다.
 class ReplanMergeTest {
 
 	private static final LatLng KUROMON = new LatLng(34.6655, 135.5066);
@@ -68,29 +68,32 @@ class ReplanMergeTest {
 	}
 
 	@Test
-	void 규칙_기반_안도_앞의_안과_같으면_그_안은_빼고_보낸다() {
+	void 규칙_기반_대체안도_앞의_안과_같으면_최종_필터에서_합친다() {
 		// AI 조건 안이 규칙 기반 이동 최소 안과 같은 순서라 바꿔도 겹친다
 		List<AiPlanner.Draft> drafts = List.of(
 			draft(PlanKey.CONDITION, "AI 조건 안", food, shopping, park),
 			draft(PlanKey.MIN_TRAVEL, "AI 이동 안", food, shopping, park));
 
 		List<ReplanResponse.Plan> merged = ReplanService.merge(drafts, rulePlans, input, WALK);
+		List<ReplanResponse.Plan> filtered = PlanFilter.distinct(merged, List.of());
 
-		assertThat(merged).extracting(ReplanResponse.Plan::key).containsExactly(PlanKey.CONDITION, PlanKey.SLACK);
-		assertThat(merged.get(0).reason()).isEqualTo("AI 조건 안");
+		assertThat(filtered).extracting(ReplanResponse.Plan::key).containsExactly(PlanKey.CONDITION, PlanKey.SLACK);
+		assertThat(filtered.getFirst().reason()).isEqualTo("AI 조건 안");
+		assertThat(filtered.getFirst().label()).isEqualTo("조건 일치 우선 · 이동 최소");
 		// AI가 답하지 않은 여유 안은 규칙 기반 안
-		assertThat(merged.get(1)).isEqualTo(rulePlans.get(2));
+		assertThat(filtered.get(1)).isEqualTo(rulePlans.get(2));
 	}
 
 	@Test
-	void AI_안이_없어_들어간_규칙_기반_안도_앞의_안과_같으면_뺀다() {
+	void AI_안이_없어_들어간_규칙_기반_안도_앞의_안과_같으면_최종_필터에서_합친다() {
 		// AI 조건 안이 규칙 기반 여유 안(원래 순서)과 같다. AI는 여유 안을 답하지 않았다
 		List<AiPlanner.Draft> drafts = List.of(draft(PlanKey.CONDITION, "AI 조건 안", park, shopping, food));
 
 		List<ReplanResponse.Plan> merged = ReplanService.merge(drafts, rulePlans, input, WALK);
+		List<ReplanResponse.Plan> filtered = PlanFilter.distinct(merged, List.of());
 
-		assertThat(merged).extracting(ReplanResponse.Plan::key).containsExactly(PlanKey.CONDITION, PlanKey.MIN_TRAVEL);
-		assertThat(merged).extracting(ReplanMergeTest::route).doesNotHaveDuplicates();
+		assertThat(filtered).extracting(ReplanResponse.Plan::key).containsExactly(PlanKey.CONDITION, PlanKey.MIN_TRAVEL);
+		assertThat(filtered.getFirst().label()).isEqualTo("조건 일치 우선 · 시간 여유 우선");
 	}
 
 	@Test
@@ -104,6 +107,22 @@ class ReplanMergeTest {
 
 		assertThat(merged).extracting(ReplanResponse.Plan::reason)
 			.containsExactly("AI 조건 안", "AI 이동 안", "AI 여유 안");
+	}
+
+	@Test
+	void 같은_순서여도_머무는_시간이_10분_넘게_다른_AI_안을_유지한다() {
+		Stop longerShopping = new Stop(shopping.id(), shopping.title(), shopping.placeText(), shopping.place(),
+			shopping.category(), shopping.stayMin() + 20, false);
+		List<AiPlanner.Draft> drafts = List.of(
+			draft(PlanKey.CONDITION, "AI 조건 안", shopping, park, food),
+			draft(PlanKey.MIN_TRAVEL, "AI 이동 안", longerShopping, park, food));
+
+		List<ReplanResponse.Plan> merged = ReplanService.merge(drafts, rulePlans, input, WALK);
+		List<ReplanResponse.Plan> filtered = PlanFilter.distinct(merged, List.of());
+
+		assertThat(route(filtered.getFirst())).isEqualTo(route(filtered.get(1)));
+		assertThat(filtered.get(1).reason()).isEqualTo("AI 이동 안");
+		assertThat(filtered.get(1).items().getFirst().stayMin()).isEqualTo(shopping.stayMin() + 20);
 	}
 
 	private static AiPlanner.Draft draft(PlanKey key, String reason, Stop... stops) {

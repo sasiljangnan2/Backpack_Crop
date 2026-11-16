@@ -108,6 +108,50 @@ class ExpenseApi {
         await _api.get('/api/trips/$tripId/settlement-shares/$shareId') as Json,
       );
 
+  // ---- 공금
+
+  Future<Fund> fund(String tripId) async =>
+      Fund.fromJson(await _api.get('/api/trips/$tripId/fund') as Json);
+
+  Future<Fund> addFundContribution(
+    String tripId, {
+    required String memberId,
+    required int amountKrw,
+    String? memo,
+  }) async => Fund.fromJson(
+    await _api.post(
+      '/api/trips/$tripId/fund/contributions',
+      body: {'memberId': memberId, 'amountKrw': amountKrw, 'memo': memo},
+    ) as Json,
+  );
+
+  Future<Fund> updateFundContribution(
+    String tripId,
+    String contributionId, {
+    required String memberId,
+    required int amountKrw,
+    required DateTime contributedOn,
+    String? memo,
+  }) async => Fund.fromJson(
+    await _api.put(
+      '/api/trips/$tripId/fund/contributions/$contributionId',
+      body: {
+        'memberId': memberId,
+        'amountKrw': amountKrw,
+        'contributedOn': dateParam(contributedOn),
+        'memo': memo,
+      },
+    ) as Json,
+  );
+
+  Future<Fund> deleteFundContribution(
+    String tripId,
+    String contributionId,
+  ) async => Fund.fromJson(
+    await _api.delete('/api/trips/$tripId/fund/contributions/$contributionId')
+        as Json,
+  );
+
   // ---- 예산
 
   Future<Budget> budget(String tripId) async => Budget.fromJson(

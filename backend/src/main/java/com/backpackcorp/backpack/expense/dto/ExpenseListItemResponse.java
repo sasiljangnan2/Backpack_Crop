@@ -21,6 +21,7 @@ public record ExpenseListItemResponse(
 	BigDecimal amountLocal,
 	long amountKrw,
 	MemberRef payer,
+	boolean paidFromFund,
 	MemberRef creator,
 	boolean isPaidByMe,
 	long myShareKrw,
@@ -31,8 +32,10 @@ public record ExpenseListItemResponse(
 		return new ExpenseListItemResponse(expense.getId(), expense.getTitle(), expense.getTitleKo(),
 			expense.getCategory(),
 			expense.getPaidDate(), expense.getRateMode(), expense.getAmountLocal(),
-			expense.getAmountKrw().longValueExact(), MemberRef.from(expense.getPayer()),
-			MemberRef.from(expense.getCreator()), expense.getPayer().getId().equals(myMemberId), myShareKrw,
+			expense.getAmountKrw().longValueExact(),
+			expense.isPaidFromFund() ? MemberRef.FUND : MemberRef.from(expense.getPayer()), expense.isPaidFromFund(),
+			MemberRef.from(expense.getCreator()),
+			!expense.isPaidFromFund() && expense.getPayer().getId().equals(myMemberId), myShareKrw,
 			expense.getCreatedAt());
 	}
 }

@@ -21,6 +21,12 @@ public record TripUpdateRequest(
 	String currencyCode,
 
 	@Size(max = 40, message = "시간대 이름이 너무 길어요.")
-	String timeZone
+	String timeZone,
+
+	// true면 출발일이 바뀐 날 수만큼 일정 · 투표 날짜도 옮긴다 (DAY 1 일정은 새 출발일로)
+	Boolean moveSchedules,
+
+	// true면 바꾼 기간 밖에 남는 일정 · 진행 중 투표를 지운다. 아니면 409 TRIP_PERIOD_CONFLICT로 알려 준다
+	Boolean dropOutside
 ) {
 }

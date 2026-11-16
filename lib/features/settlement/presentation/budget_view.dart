@@ -8,6 +8,7 @@ import '../../../core/widgets/common.dart';
 import '../../expense/data/expense_models.dart';
 import '../../trip/data/trip_models.dart';
 import '../data/settlement_models.dart';
+import 'fund_section.dart';
 
 /// BP-BG-001 · 002 예산 현황 · 예상 경비 입력 (경비 탭의 "예산")
 class BudgetView extends StatefulWidget {
@@ -97,7 +98,8 @@ class _BudgetViewState extends State<BudgetView> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '지출 ${Fmt.krw(budget.totalSpentKrw)} · ${(ratio * 100).round()}% 사용',
+                      '지출 ${Fmt.krw(budget.totalSpentKrw)} · ${(ratio * 100).round()}% 사용'
+                      ' · ${budget.remainingBudgetKrw >= 0 ? '남은 예산 ${Fmt.krw(budget.remainingBudgetKrw)}' : '${Fmt.krw(-budget.remainingBudgetKrw)} 초과'}',
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.muted,
@@ -128,6 +130,12 @@ class _BudgetViewState extends State<BudgetView> {
                     ),
                 ],
               ),
+            ),
+            // 교수님 피드백: 공금을 모아 쓰고, 예산에서 지금 금액과 비교해 얼마나 남았는지 본다
+            FundSection(
+              trip: trip,
+              budget: budget,
+              onChanged: () => _key.currentState?.reload(),
             ),
             if (budget.summary.isNotEmpty) ...[
               const SectionTitle('분류별 예산 · 지출'),

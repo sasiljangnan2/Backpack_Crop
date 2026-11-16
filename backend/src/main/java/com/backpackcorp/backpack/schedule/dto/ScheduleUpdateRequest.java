@@ -40,7 +40,10 @@ public record ScheduleUpdateRequest(
 
 	PlaceCategory placeCategory,
 
+	// reservationStatus를 보내면 reservationTime도 함께 바뀐다 (보내지 않으면 예약 시간을 지운다)
 	ReservationStatus reservationStatus,
+
+	LocalTime reservationTime,
 
 	@Size(max = 500, message = "메모는 500자 이하로 입력해 주세요.")
 	String memo,
@@ -50,6 +53,6 @@ public record ScheduleUpdateRequest(
 
 	public boolean changesOtherThanLock() {
 		return day != null || startTime != null || endTime != null || title != null || placeText != null
-			|| placeLat != null || placeLng != null || reservationStatus != null || memo != null;
+			|| placeLat != null || placeLng != null || reservationStatus != null || reservationTime != null || memo != null;
 	}
 }

@@ -13,6 +13,7 @@ import com.backpackcorp.backpack.expense.dto.MemberRef;
 public record MySettlementResponse(
 	MemberRef me,
 	long paidKrw,
+	long contributedKrw,
 	long shareKrw,
 	long balanceKrw,
 	SettlementStatus status,

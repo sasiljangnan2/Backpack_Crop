@@ -7,6 +7,7 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import com.backpackcorp.backpack.global.entity.BaseTimeEntity;
+import com.backpackcorp.backpack.schedule.domain.Schedule;
 import com.backpackcorp.backpack.trip.domain.Trip;
 import com.backpackcorp.backpack.trip.domain.TripMember;
 
@@ -36,10 +37,20 @@ public class Expense extends BaseTimeEntity {
 	@JoinColumn(name = "trip_id", nullable = false)
 	private Trip trip;
 
+	// 예약 결제처럼 일정과 이어진 지출. 일정을 지워도 지출은 남는다 (BP-SC-003)
+	@ManyToOne(fetch = FetchType.LAZY)
+	@OnDelete(action = OnDeleteAction.SET_NULL)
+	@JoinColumn(name = "schedule_id")
+	private Schedule schedule;
+
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@OnDelete(action = OnDeleteAction.CASCADE)
 	@JoinColumn(name = "payer_member_id", nullable = false)
 	private TripMember payer;
+
+	// 공금에서 낸 지출. payer는 입력한 사람이고 정산에서 낸 돈으로 치지 않는다
+	@Column(nullable = false)
+	private boolean paidFromFund;
 
 	// payer와 다르면 대리 입력
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -92,12 +103,15 @@ public class Expense extends BaseTimeEntity {
 	private int version;
 
 	@Builder
-	private Expense(Trip trip, TripMember payer, TripMember creator, String title, String titleKo,
+	private Expense(Trip trip, Schedule schedule, TripMember payer, boolean paidFromFund, TripMember creator,
+		String title, String titleKo,
 		ExpenseCategory category,
 		LocalDate paidDate, BigDecimal amountLocal, RateMode rateMode, BigDecimal appliedRate, LocalDate rateDate,
 		BigDecimal amountKrw, SplitMethod splitMethod) {
 		this.trip = trip;
+		this.schedule = schedule;
 		this.payer = payer;
+		this.paidFromFund = paidFromFund;
 		this.creator = creator;
 		this.title = title;
 		this.titleKo = titleKo;
@@ -113,7 +127,9 @@ public class Expense extends BaseTimeEntity {
 
 	// 수정은 전체 교체다. 작성자(creator)와 여행은 바뀌지 않는다
 	public void replaceWith(Expense source) {
+		this.schedule = source.schedule;
 		this.payer = source.payer;
+		this.paidFromFund = source.paidFromFund;
 		this.title = source.title;
 		this.titleKo = source.titleKo;
 		this.category = source.category;

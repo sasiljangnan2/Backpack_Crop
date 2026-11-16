@@ -13,6 +13,7 @@ class SettlementMember {
     required this.isMe,
     required this.hasLeft,
     required this.paidKrw,
+    this.contributedKrw = 0,
     required this.shareKrw,
     required this.balanceKrw,
     required this.status,
@@ -24,6 +25,7 @@ class SettlementMember {
     isMe: json['isMe'] as bool? ?? false,
     hasLeft: json['hasLeft'] as bool? ?? false,
     paidKrw: integer(json['paidKrw']),
+    contributedKrw: integerOrNull(json['contributedKrw']) ?? 0,
     shareKrw: integer(json['shareKrw']),
     balanceKrw: integer(json['balanceKrw']),
     status: enumOf(
@@ -37,7 +39,12 @@ class SettlementMember {
   final String name;
   final bool isMe;
   final bool hasLeft;
+
+  /// 직접 결제한 돈 + 공금에 모은 돈
   final int paidKrw;
+
+  /// 그중 공금에 모은 돈
+  final int contributedKrw;
   final int shareKrw;
   final int balanceKrw;
   final SettlementStatus status;
@@ -61,6 +68,99 @@ class Transfer {
   final int amountKrw;
 }
 
+/// 정산 화면의 공금 요약
+class FundSummary {
+  const FundSummary({
+    required this.collectedKrw,
+    required this.spentKrw,
+    required this.remainingKrw,
+  });
+
+  factory FundSummary.fromJson(Json json) => FundSummary(
+    collectedKrw: integer(json['collectedKrw']),
+    spentKrw: integer(json['spentKrw']),
+    remainingKrw: integer(json['remainingKrw']),
+  );
+
+  final int collectedKrw;
+  final int spentKrw;
+  final int remainingKrw;
+}
+
+class FundMemberTotal {
+  const FundMemberTotal({required this.member, required this.contributedKrw});
+
+  factory FundMemberTotal.fromJson(Json json) => FundMemberTotal(
+    member: MemberRef.fromJson(json['member'] as Json),
+    contributedKrw: integer(json['contributedKrw']),
+  );
+
+  final MemberRef member;
+  final int contributedKrw;
+}
+
+class FundContribution {
+  const FundContribution({
+    required this.id,
+    required this.member,
+    required this.amountKrw,
+    required this.contributedOn,
+    required this.memo,
+    required this.canEdit,
+  });
+
+  factory FundContribution.fromJson(Json json) => FundContribution(
+    id: json['id'] as String,
+    member: MemberRef.fromJson(json['member'] as Json),
+    amountKrw: integer(json['amountKrw']),
+    contributedOn: date(json['contributedOn']),
+    memo: json['memo'] as String?,
+    canEdit: json['canEdit'] as bool? ?? false,
+  );
+
+  final String id;
+  final MemberRef member;
+  final int amountKrw;
+  final DateTime contributedOn;
+  final String? memo;
+
+  /// 돈을 낸 사람 · 입력한 사람 · 방장
+  final bool canEdit;
+}
+
+/// 공금 현황: 모은 돈 - 공금에서 낸 지출 = 남은 돈
+class Fund {
+  static const empty = Fund(
+    collectedKrw: 0,
+    spentKrw: 0,
+    remainingKrw: 0,
+    members: [],
+    contributions: [],
+  );
+
+  const Fund({
+    required this.collectedKrw,
+    required this.spentKrw,
+    required this.remainingKrw,
+    required this.members,
+    required this.contributions,
+  });
+
+  factory Fund.fromJson(Json json) => Fund(
+    collectedKrw: integer(json['collectedKrw']),
+    spentKrw: integer(json['spentKrw']),
+    remainingKrw: integer(json['remainingKrw']),
+    members: list(json['members'], FundMemberTotal.fromJson),
+    contributions: list(json['contributions'], FundContribution.fromJson),
+  );
+
+  final int collectedKrw;
+  final int spentKrw;
+  final int remainingKrw;
+  final List<FundMemberTotal> members;
+  final List<FundContribution> contributions;
+}
+
 class Settlement {
   const Settlement({
     required this.totalKrw,
@@ -69,6 +169,7 @@ class Settlement {
     required this.directTransferCount,
     required this.members,
     required this.transfers,
+    this.fund,
   });
 
   factory Settlement.fromJson(Json json) => Settlement(
@@ -78,8 +179,13 @@ class Settlement {
     directTransferCount: integerOrNull(json['directTransferCount']) ?? 0,
     members: list(json['members'], SettlementMember.fromJson),
     transfers: list(json['transfers'], Transfer.fromJson),
+    fund: json['fund'] == null
+        ? null
+        : FundSummary.fromJson(json['fund'] as Json),
   );
 
+  /// 공금을 쓰지 않는 여행이면 null
+  final FundSummary? fund;
   final int totalKrw;
   final int expenseCount;
   final int transferTotalKrw;
@@ -159,6 +265,7 @@ class MySettlement {
   const MySettlement({
     required this.me,
     required this.paidKrw,
+    this.contributedKrw = 0,
     required this.shareKrw,
     required this.balanceKrw,
     required this.status,
@@ -171,6 +278,7 @@ class MySettlement {
   factory MySettlement.fromJson(Json json) => MySettlement(
     me: MemberRef.fromJson(json['me'] as Json),
     paidKrw: integer(json['paidKrw']),
+    contributedKrw: integerOrNull(json['contributedKrw']) ?? 0,
     shareKrw: integer(json['shareKrw']),
     balanceKrw: integer(json['balanceKrw']),
     status: enumOf(
@@ -186,6 +294,9 @@ class MySettlement {
 
   final MemberRef me;
   final int paidKrw;
+
+  /// 낸 돈 중 공금에 모은 돈
+  final int contributedKrw;
   final int shareKrw;
   final int balanceKrw;
   final SettlementStatus status;
@@ -307,6 +418,7 @@ class Budget {
     required this.currencyCode,
     required this.todayRate,
     required this.hasUnconvertedItems,
+    required this.fund,
   });
 
   factory Budget.fromJson(Json json) => Budget(
@@ -319,6 +431,10 @@ class Budget {
     currencyCode: json['currencyCode'] as String,
     todayRate: ExchangeRate.fromJsonOrNull(json['todayRate']),
     hasUnconvertedItems: json['hasUnconvertedItems'] as bool? ?? false,
+    // 공금 기능이 없는 예전 서버면 빈 공금으로 본다
+    fund: json['fund'] == null
+        ? Fund.empty
+        : Fund.fromJson(json['fund'] as Json),
   );
 
   final List<BudgetItem> items;
@@ -330,6 +446,12 @@ class Budget {
   final String currencyCode;
   final ExchangeRate? todayRate;
   final bool hasUnconvertedItems;
+
+  /// 공금 현황
+  final Fund fund;
+
+  /// 예산에서 남은 돈 (음수면 초과)
+  int get remainingBudgetKrw => totalBudgetKrw - totalSpentKrw;
 
   /// 예산 대비 사용률 (예산이 없으면 null)
   double? get usedRatio =>

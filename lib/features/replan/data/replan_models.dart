@@ -16,7 +16,7 @@ enum ReplanCondition {
   final String code;
 }
 
-/// BP-AI-003 추천 3안의 기준
+/// BP-AI-003 추천안의 기준 (같은 안은 서버가 하나로 합쳐 1~3안)
 enum PlanKey {
   condition('CONDITION'),
   minTravel('MIN_TRAVEL'),

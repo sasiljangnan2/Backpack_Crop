@@ -27,6 +27,9 @@ public record ScheduleResponse(
 	PlaceCategory placeCategory,
 	boolean isLocked,
 	ReservationStatus reservationStatus,
+	@JsonFormat(pattern = "HH:mm") LocalTime reservationTime,
+	// 예약 결제 등으로 이어진 지출 ("지출 연결" 배지). 없으면 null
+	UUID linkedExpenseId,
 	String memo,
 	// AI 재구성으로 바뀐 뒤 사람이 고치지 않은 일정 (BP-AI-003 "재구성" 배지)
 	boolean replanned,
@@ -51,10 +54,16 @@ public record ScheduleResponse(
 	}
 
 	public static ScheduleResponse of(Schedule schedule, ScheduleActivity activity, LocalDate today, LocalTime now) {
+		return of(schedule, activity, today, now, null);
+	}
+
+	public static ScheduleResponse of(Schedule schedule, ScheduleActivity activity, LocalDate today, LocalTime now,
+		UUID linkedExpenseId) {
 		return new ScheduleResponse(schedule.getId(), schedule.getDay(), schedule.getStartTime(), schedule.getEndTime(),
 			schedule.getTitle(), schedule.getPlaceText(), toDouble(schedule.getPlaceLat()),
 			toDouble(schedule.getPlaceLng()), schedule.getPlaceCategory(), schedule.isLocked(),
-			schedule.getReservationStatus(), schedule.getMemo(), schedule.getReplannedAt() != null,
+			schedule.getReservationStatus(), schedule.getReservationTime(), linkedExpenseId, schedule.getMemo(),
+			schedule.getReplannedAt() != null,
 			ScheduleStatus.of(schedule, activity != null, today, now),
 			ActivityResponse.from(activity), MemberRef.from(schedule.getCreatedBy()), schedule.getVersion(),
 			schedule.getUpdatedAt());

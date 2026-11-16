@@ -16,16 +16,23 @@ public record SettlementResponse(
 	long directTransferCount,
 	List<MemberResponse> members,
 	List<TransferResponse> transfers,
+	FundSummary fund,
 	Instant calculatedAt
 ) {
 
-	// hasLeft: 여행을 나간 멤버. 나가기 전 지출이 남아 있으면 정산에 계속 나온다
+	// 공금을 쓰지 않는 여행이면 null. 남은 공금은 transfers에 "공금 → 멤버"로 나온다
+	public record FundSummary(long collectedKrw, long spentKrw, long remainingKrw) {
+	}
+
+	// hasLeft: 여행을 나간 멤버. 나가기 전 지출이 남아 있으면 정산에 계속 나온다.
+	// paidKrw: 직접 결제한 돈 + 공금에 모은 돈(contributedKrw)
 	public record MemberResponse(
 		UUID memberId,
 		String name,
 		boolean isMe,
 		boolean hasLeft,
 		long paidKrw,
+		long contributedKrw,
 		long shareKrw,
 		long balanceKrw,
 		SettlementStatus status

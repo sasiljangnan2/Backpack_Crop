@@ -31,15 +31,15 @@ public class SettlementTransfer extends BaseEntity {
 	@JoinColumn(name = "share_id", nullable = false)
 	private SettlementShare share;
 
-	// 보내는 사람과 받는 사람은 달라야 한다 (애플리케이션에서 검증)
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	// 보내는 사람과 받는 사람은 달라야 한다 (애플리케이션에서 검증). null이면 공금
+	@ManyToOne(fetch = FetchType.LAZY)
 	@OnDelete(action = OnDeleteAction.CASCADE)
-	@JoinColumn(name = "from_member_id", nullable = false)
+	@JoinColumn(name = "from_member_id")
 	private TripMember fromMember;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@ManyToOne(fetch = FetchType.LAZY)
 	@OnDelete(action = OnDeleteAction.CASCADE)
-	@JoinColumn(name = "to_member_id", nullable = false)
+	@JoinColumn(name = "to_member_id")
 	private TripMember toMember;
 
 	// 0보다 커야 한다 (ck_settlement_transfers_amount)
