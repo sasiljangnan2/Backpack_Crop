@@ -191,6 +191,28 @@ class FundApiTest extends ApiTestSupport {
 	}
 
 	@Test
+	void 나간_멤버가_낸_돈도_낸_사람을_그대로_두면_고칠_수_있다() throws Exception {
+		String contribution = read(contribute(1, 50_000), "$.contributions[0].id");
+		perform(delete(tripUrl() + "/members/me"), 1, null).andExpect(status().isNoContent());
+
+		perform(put(fund() + "/contributions/" + contribution), 0, contributionBody(1, 30_000))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.collectedKrw").value(30_000))
+			.andExpect(jsonPath("$.contributions[0].member.name").value("이멤버"))
+			.andExpect(jsonPath("$.contributions[0].amountKrw").value(30_000));
+
+		// 나간 멤버에게 새로 넣거나, 다른 기록의 낸 사람을 나간 멤버로 바꿀 수는 없다
+		perform(post(fund() + "/contributions"), 0, contributionBody(1, 10_000))
+			.andExpect(status().isBadRequest());
+		// 다음 날로 적어 목록 맨 앞에 오게 한다 (최근 모은 순)
+		String hostContribution = read(perform(post(fund() + "/contributions"), 0, """
+			{"memberId":"%s","amountKrw":10000,"contributedOn":"%s"}
+			""".formatted(id(0), DAY.plusDays(1))).andExpect(status().isCreated()), "$.contributions[0].id");
+		perform(put(fund() + "/contributions/" + hostContribution), 0, contributionBody(1, 10_000))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void 공금_지출은_결제자_환전_환율을_쓸_수_없고_멤버만_공금을_넣을_수_있다() throws Exception {
 		contribute(0, 100_000);
 		perform(post(tripUrl() + "/expenses"), 0, """
