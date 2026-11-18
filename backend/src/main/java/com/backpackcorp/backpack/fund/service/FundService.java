@@ -95,7 +95,11 @@ public class FundService {
 		TripMember me = tripMemberGuard.requireMember(tripId, userId);
 		FundContribution contribution = findEditable(tripId, contributionId, me);
 		requireRemaining(tripId, contribution.getAmountKrw().longValueExact() - request.amountKrw());
-		contribution.update(requireCurrentMember(tripId, request.memberId()),
+		// 낸 사람을 그대로 두면 여행을 나간 멤버여도 금액 · 날짜 · 메모를 고칠 수 있다
+		TripMember member = contribution.getMember().getId().equals(request.memberId())
+			? contribution.getMember()
+			: requireCurrentMember(tripId, request.memberId());
+		contribution.update(member,
 			BigDecimal.valueOf(request.amountKrw()), dateOf(me.getTrip(), request), blankToNull(request.memo()));
 		fundContributionRepository.flush();
 		return fundOf(me);
